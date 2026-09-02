@@ -94,15 +94,18 @@ export class ScreenCaptureService {
     const video = this.video
     if (!video) return
     const canvas = document.createElement('canvas')
-    canvas.width = 64
-    canvas.height = 40
+    canvas.width = 128
+    canvas.height = 72
     const ctx = canvas.getContext('2d', { willReadFrequently: true })!
     const tick = (time: number) => {
       if (this.video !== video) return
       if (video.videoWidth && time - this.lastSample >= this.interval()) {
         this.lastSample = time
-        ctx.drawImage(video, 0, 0, 64, 40)
-        const result = this.detector.compare(ctx.getImageData(0, 0, 64, 40).data)
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+        const result = this.detector.compare(
+          ctx.getImageData(0, 0, canvas.width, canvas.height).data,
+          canvas.width,
+        )
         if (result.changed) this.onChange(result.difference)
       }
       this.sampleId = video.requestVideoFrameCallback
