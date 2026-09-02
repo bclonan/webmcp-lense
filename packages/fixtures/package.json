@@ -1,0 +1,1 @@
+{"name":"@lens/fixtures","private":true,"type":"module","exports":"./src/index.ts","dependencies":{"@lens/protocol":"workspace:*"}}

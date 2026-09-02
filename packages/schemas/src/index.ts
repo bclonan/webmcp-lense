@@ -1,0 +1,139 @@
+import { z } from 'zod'
+export const pointSchema = z
+  .object({ x: z.number().finite().min(0).max(1), y: z.number().finite().min(0).max(1) })
+  .strict()
+export const desktopPointSchema = z
+  .object({
+    x: z.number().int().min(-100000).max(100000),
+    y: z.number().int().min(-100000).max(100000),
+  })
+  .strict()
+export const keySchema = z.enum([
+  'WIN',
+  'ENTER',
+  'ESC',
+  'TAB',
+  'BACKSPACE',
+  'DELETE',
+  'CTRL+A',
+  'CTRL+C',
+  'CTRL+V',
+  'CTRL+S',
+  'ALT+F4',
+  'LEFT',
+  'RIGHT',
+  'UP',
+  'DOWN',
+])
+const id = z.string().min(1).max(64)
+export const commandSchema = z.discriminatedUnion('type', [
+  z.object({ id, type: z.literal('pointer.move'), point: desktopPointSchema }).strict(),
+  z
+    .object({
+      id,
+      type: z.literal('pointer.click'),
+      point: desktopPointSchema,
+      button: z.enum(['left', 'right']),
+    })
+    .strict(),
+  z
+    .object({
+      id,
+      type: z.literal('pointer.drag'),
+      points: z.array(desktopPointSchema).min(2).max(128),
+      durationMs: z.number().int().min(50).max(5000),
+    })
+    .strict(),
+  z.object({ id, type: z.literal('keyboard.text'), text: z.string().min(1).max(2000) }).strict(),
+  z.object({ id, type: z.literal('keyboard.key'), key: keySchema }).strict(),
+  z
+    .object({ id, type: z.literal('scroll'), delta: z.number().int().min(-1200).max(1200) })
+    .strict(),
+])
+export const resultSchema = z
+  .object({
+    id,
+    ok: z.boolean(),
+    executedAt: z.number().finite(),
+    error: z.string().max(1000).optional(),
+  })
+  .strict()
+export const boundsSchema = z
+  .object({
+    x: z.number().finite(),
+    y: z.number().finite(),
+    width: z.number().positive(),
+    height: z.number().positive(),
+  })
+  .strict()
+export const capabilitiesSchema = z
+  .object({
+    platform: z.enum(['mock', 'windows']),
+    desktopBounds: boundsSchema,
+    displayScale: z.number().positive(),
+    commands: z.array(
+      z.enum([
+        'pointer.move',
+        'pointer.click',
+        'pointer.drag',
+        'keyboard.text',
+        'keyboard.key',
+        'scroll',
+      ]),
+    ),
+    emergencyStop: z.boolean(),
+  })
+  .strict()
+const stepBase = { approval: z.boolean().optional() }
+const target = { targetId: z.string().max(120).optional(), point: pointSchema.optional() }
+export const cartridgeStepSchema = z.discriminatedUnion('type', [
+  z
+    .object({
+      ...stepBase,
+      type: z.literal('click'),
+      ...target,
+      button: z.enum(['left', 'right']).optional(),
+    })
+    .strict(),
+  z.object({ ...stepBase, type: z.literal('type'), text: z.string().min(1).max(2000) }).strict(),
+  z.object({ ...stepBase, type: z.literal('press'), key: keySchema }).strict(),
+  z
+    .object({
+      ...stepBase,
+      type: z.literal('scroll'),
+      delta: z.number().int().min(-1200).max(1200),
+    })
+    .strict(),
+  z
+    .object({
+      ...stepBase,
+      type: z.literal('drag'),
+      points: z.array(pointSchema).min(2).max(128),
+      durationMs: z.number().int().min(50).max(5000).optional(),
+    })
+    .strict(),
+  ...(['locate', 'waitFor', 'assert'] as const).map((type) =>
+    z.object({ ...stepBase, type: z.literal(type), text: z.string().min(1).max(500) }).strict(),
+  ),
+])
+export const cartridgeSchema = z
+  .object({
+    version: z.literal(1),
+    id,
+    name: z.string().min(1).max(100),
+    description: z.string().max(1000),
+    application: z.string().max(100),
+    inputs: z.record(z.string().regex(/^[a-zA-Z][a-zA-Z0-9_]{0,39}$/), z.string().max(500)),
+    steps: z.array(cartridgeStepSchema).min(1).max(100),
+    assertions: z.array(z.string().max(500)).max(20),
+    approvalRequirements: z.array(z.string().max(200)).max(20),
+    metadata: z
+      .object({
+        createdAt: z.number(),
+        observationSource: z.string().max(100),
+        author: z.string().max(100),
+        notes: z.array(z.string().max(1000)).max(100).optional(),
+      })
+      .strict(),
+  })
+  .strict()

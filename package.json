@@ -1,0 +1,16 @@
+{
+  "name": "lens-workspace",
+  "private": true,
+  "packageManager": "pnpm@11.8.0",
+  "scripts": {
+    "dev": "pnpm dev:web",
+    "dev:web": "pnpm --filter @lens/web dev",
+    "dev:bridge": "cargo run --manifest-path apps/bridge/Cargo.toml",
+    "build": "pnpm --filter @lens/web build",
+    "typecheck": "pnpm --filter @lens/web typecheck",
+    "test": "pnpm --filter @lens/web test",
+    "test:e2e": "pnpm --filter @lens/web test:e2e",
+    "test:bridge": "cargo test --manifest-path apps/bridge/Cargo.toml --target-dir apps/bridge/target/verification",
+    "export:schemas": "pnpm --filter @lens/web exec node --experimental-strip-types scripts/export-schemas.mjs"
+  }
+}
