@@ -11,6 +11,8 @@ export const useSessionStore = defineStore('session', {
     recording: false,
     persistenceError: '',
     error: '',
+    setupOpen: false,
+    setupReason: '',
     history: [] as { id: string; createdAt: number; mode: string }[],
   }),
 })

@@ -76,8 +76,8 @@ export function evaluationCases(registry: ToolRegistry) {
           },
         })
         check(
-          names.length === 15 && new Set(names).size === 15,
-          'Expected 15 distinct native tool registrations',
+          names.length === 19 && new Set(names).size === 19,
+          'Expected 19 distinct native tool registrations',
         )
         stop()
         check(removed, 'Registration must support abort cleanup')

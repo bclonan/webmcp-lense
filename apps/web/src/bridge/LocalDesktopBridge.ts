@@ -3,6 +3,7 @@ import { capabilitiesSchema, commandSchema, resultSchema } from '@lens/schemas'
 export class LocalDesktopBridge implements DesktopBridge {
   private token = ''
   private generation = 0
+  expiresAt = 0
   private readonly url = 'http://127.0.0.1:47653'
   constructor(private pairingCode: string) {}
   private async request(path: string, body: unknown = {}, token = this.token) {
@@ -33,6 +34,7 @@ export class LocalDesktopBridge implements DesktopBridge {
       throw new Error('Pairing cancelled.')
     }
     this.token = response.token
+    this.expiresAt = Date.now() + (Number(response.expiresIn) || 1800) * 1000
   }
   async capabilities() {
     return capabilitiesSchema.parse(await this.request('/capabilities'))

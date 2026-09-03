@@ -1,0 +1,33 @@
+name: Desktop bridge
+on:
+  push:
+    paths: ['apps/bridge/**', '.github/workflows/bridge.yml']
+  pull_request:
+    paths: ['apps/bridge/**', '.github/workflows/bridge.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Linux keyboard library
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libxkbcommon-dev
+      - name: Test without an interactive desktop
+        run: cargo test --locked --manifest-path apps/bridge/Cargo.toml -- --skip enumerates_physical_monitors_without_sending_input
+      - name: Build native companion
+        run: cargo build --locked --release --manifest-path apps/bridge/Cargo.toml
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lens-bridge-${{ runner.os }}-${{ runner.arch }}
+          path: |
+            apps/bridge/target/release/lens-bridge
+            apps/bridge/target/release/lens-bridge.exe
+          if-no-files-found: error

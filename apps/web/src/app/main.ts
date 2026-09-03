@@ -21,7 +21,8 @@ const lens = new LensService()
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/', component: HomePage },
+    { path: '/', redirect: '/session' },
+    { path: '/about', component: HomePage },
     { path: '/session', component: SessionPage },
     { path: '/demo', component: DemoPage },
     { path: '/tools', component: ToolsPage },
@@ -29,10 +30,9 @@ const router = createRouter({
     { path: '/settings', component: SettingsPage },
   ],
 })
-router.beforeEach((to, from) => {
+router.beforeEach(async (to, from) => {
   if (from.path === '/session' && to.path !== '/session' && lens.session.mode === 'live') {
-    lens.capture.stop()
-    void lens.stop()
+    if (lens.runtime.busy) await lens.cancelGoal()
   }
 })
 app.provide(lensKey, lens)
@@ -40,13 +40,16 @@ app.use(router)
 app.mount('#app')
 void lens.init()
 const cleanup = registerNativeTools(lens.tools)
+const healthCheck = window.setInterval(() => void lens.checkConnection(), 15000)
 window.addEventListener('pagehide', () => {
+  clearInterval(healthCheck)
   lens.capture.stop()
   void lens.stop()
   void cleanup.then((dispose) => dispose())
 })
 if (import.meta.hot)
   import.meta.hot.dispose(() => {
+    clearInterval(healthCheck)
     lens.capture.stop()
     void lens.stop()
     void cleanup.then((dispose) => dispose())

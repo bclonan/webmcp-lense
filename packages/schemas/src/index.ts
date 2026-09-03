@@ -20,6 +20,12 @@ export const keySchema = z.enum([
   'CTRL+V',
   'CTRL+S',
   'ALT+F4',
+  'CMD+A',
+  'CMD+C',
+  'CMD+V',
+  'CMD+S',
+  'CMD+W',
+  'CMD+SPACE',
   'LEFT',
   'RIGHT',
   'UP',
@@ -68,7 +74,8 @@ export const boundsSchema = z
   .strict()
 export const capabilitiesSchema = z
   .object({
-    platform: z.enum(['mock', 'windows']),
+    platform: z.enum(['mock', 'windows', 'macos', 'linux']),
+    coordinateSpace: z.enum(['physical-pixels', 'logical-points']).optional(),
     desktopBounds: boundsSchema,
     displayScale: z.number().positive(),
     commands: z.array(
@@ -82,6 +89,13 @@ export const capabilitiesSchema = z
       ]),
     ),
     emergencyStop: z.boolean(),
+    displays: z
+      .array(
+        z
+          .object({ id: z.string(), name: z.string(), bounds: boundsSchema, primary: z.boolean() })
+          .strict(),
+      )
+      .optional(),
   })
   .strict()
 const stepBase = { approval: z.boolean().optional() }
@@ -137,3 +151,19 @@ export const cartridgeSchema = z
       .strict(),
   })
   .strict()
+export const sequenceSchema = z
+  .object({
+    name: z.string().min(1).max(100),
+    steps: z.array(cartridgeStepSchema).min(1).max(20),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    value.steps.forEach((step, index) => {
+      if (step.type === 'click' && !!step.targetId === !!step.point)
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['steps', index],
+          message: 'A click needs exactly one targetId or point.',
+        })
+    })
+  })

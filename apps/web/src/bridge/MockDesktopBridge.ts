@@ -47,6 +47,13 @@ export class MockDesktopBridge implements DesktopBridge {
         error: 'Mock bridge disconnected. Re-enable demo control to retry.',
       }
     }
+    if (c.type === 'keyboard.key' && c.key.startsWith('CMD+'))
+      return {
+        id: c.id,
+        ok: false,
+        executedAt: Date.now(),
+        error: 'CMD shortcuts require a paired Mac. This demo uses Windows shortcuts.',
+      }
     const d = this.desktop
     const normalized = (p: NormalizedPoint) => ({ x: p.x / 1000, y: p.y / 700 })
     if (c.type === 'pointer.move') d.pointer = normalized(c.point)

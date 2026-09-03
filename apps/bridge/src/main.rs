@@ -1,8 +1,11 @@
+mod emergency;
 #[cfg(test)]
 mod http_tests;
 mod input;
 mod protocol;
 mod session;
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+mod unix_input;
 #[cfg(windows)]
 mod windows_input;
 use input::InputBackend;
@@ -152,7 +155,7 @@ fn handle(mut request: Request, app: &App) {
                 return Err("Expected empty object".into());
             }
             Ok(
-                json!({"platform":"windows","desktopBounds":app.input.geometry(),"displayScale":1,"commands":["pointer.move","pointer.click","pointer.drag","keyboard.text","keyboard.key","scroll"],"emergencyStop":true}),
+                json!({"platform":app.input.platform(),"coordinateSpace":app.input.coordinate_space(),"desktopBounds":app.input.geometry(),"displays":app.input.displays(),"displayScale":1,"commands":["pointer.move","pointer.click","pointer.drag","keyboard.text","keyboard.key","scroll"],"emergencyStop":true}),
             )
         }
         "/execute" => {
@@ -199,7 +202,6 @@ fn handle(mut request: Request, app: &App) {
         Err(error) => response(request, 400, json!({"error":error}), Some(&origin)),
     }
 }
-#[cfg(windows)]
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let origin = if args.len() == 2 && args[0] == "--origin" {
@@ -219,30 +221,35 @@ fn main() {
         eprintln!("Expected one exact HTTP localhost or HTTPS origin without a path.");
         return;
     }
+    let input = match input::create() {
+        Ok(input) => input,
+        Err(error) => {
+            eprintln!("Cannot start desktop input: {error}");
+            std::process::exit(1);
+        }
+    };
     let server = Server::http(ADDRESS).expect("Cannot bind loopback port 47653");
     let app = Arc::new(App {
         origin,
         session: Mutex::new(Session::new()),
         control: Control::new(),
-        input: Box::new(input::WindowsInput::new()),
+        input,
         executing: Mutex::new(()),
     });
-    let (send, recv) = std::sync::mpsc::channel();
     let stop_app = app.clone();
-    windows_input::hotkey_loop(
-        move || {
-            stop_app.control.stop();
-            stop_app.session.lock().unwrap().token = None;
-            println!("EMERGENCY STOP. Type enable to pair again.");
-        },
-        send,
-    );
-    if recv.recv() != Ok(true) {
-        eprintln!(
-            "Cannot register Ctrl+Alt+F10. Bridge refuses to start without its emergency hotkey."
-        );
-        return;
-    }
+    let emergency = match emergency::install(move || {
+        stop_app.control.stop();
+        stop_app.session.lock().unwrap().token = None;
+        println!("EMERGENCY STOP. Type enable to pair again.");
+    }) {
+        Ok(emergency) => emergency,
+        Err(error) => {
+            eprintln!(
+                "Cannot register Ctrl+Alt+F10: {error}. Bridge refuses to start without its emergency hotkey."
+            );
+            std::process::exit(1);
+        }
+    };
     println!(
         "Lens bridge: {ADDRESS}\nAllowed browser: {}\nPairing code: {}\nNo elevation. No shell. Ctrl+Alt+F10 stops control.\nType stop to disable, enable to issue a fresh pairing code, or quit to exit.",
         app.origin,
@@ -277,6 +284,19 @@ fn main() {
         }
         console_app.control.stop();
     });
+    #[cfg(target_os = "macos")]
+    {
+        thread::spawn(move || serve(server, app));
+        emergency.run();
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _emergency = emergency;
+        serve(server, app);
+    }
+}
+
+fn serve(server: Server, app: Arc<App>) {
     let active = Arc::new(AtomicUsize::new(0));
     for request in server.incoming_requests() {
         if active.fetch_add(1, Ordering::SeqCst) >= 16 {
@@ -291,10 +311,4 @@ fn main() {
             active.fetch_sub(1, Ordering::SeqCst);
         });
     }
-}
-#[cfg(not(windows))]
-fn main() {
-    eprintln!(
-        "Lens input currently supports Windows only. Use the browser demo on other platforms."
-    );
 }

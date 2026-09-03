@@ -21,7 +21,7 @@ All requests include the exact allowed Origin, an allowed Host and `Content-Type
 | Endpoint             | Body                          | Result                                                                          |
 | -------------------- | ----------------------------- | ------------------------------------------------------------------------------- |
 | `POST /pair`         | `{ "code": "one-time-code" }` | `{ "token": "64-hex-characters", "expiresIn": 1800 }`                           |
-| `POST /capabilities` | `{}`                          | Platform, physical desktop bounds, scale, command names, emergency-stop support |
+| `POST /capabilities` | `{}`                          | Platform, physical desktop bounds, individual displays, scale, command names, emergency-stop support |
 | `POST /execute`      | One command below             | DesktopResult                                                                   |
 | `POST /stop`         | `{}`                          | `{ "ok": true }`; revokes token and stops in-flight input                       |
 | `POST /disconnect`   | `{}`                          | Same fail-closed behavior as stop                                               |
@@ -30,7 +30,7 @@ The companion supports CORS OPTIONS for the exact allowed origin, including the 
 
 ## Commands
 
-Every command has a nonempty ASCII `id`, maximum 64 bytes. Native IDs are single-use within the paired session. The browser generates ULIDs. Coordinates are integer physical pixels inside the companion's reported desktop rectangle; they can be negative on a monitor left of or above the primary monitor.
+Every command has a nonempty ASCII `id`, maximum 64 bytes. Native IDs are single-use within the paired session. The browser generates ULIDs. Coordinates are integers inside the companion's reported desktop rectangle. `coordinateSpace` reports `physical-pixels` on Windows and Linux X11, or `logical-points` on macOS. The optional field preserves compatibility with older Windows bridges. Coordinates can be negative on a monitor left of or above the primary monitor. `platform` is `windows`, `macos` or `linux`; the browser demo uses `mock`.
 
 | Type            | Fields beyond `id` and `type`                                                |
 | --------------- | ---------------------------------------------------------------------------- |
@@ -41,7 +41,7 @@ Every command has a nonempty ASCII `id`, maximum 64 bytes. Native IDs are single
 | `keyboard.key`  | `key`, one of the enum values below                                          |
 | `scroll`        | `delta`, integer -1200 to 1200; native wheel units, positive upward          |
 
-Supported keys are `WIN`, `ENTER`, `ESC`, `TAB`, `BACKSPACE`, `DELETE`, `CTRL+A`, `CTRL+C`, `CTRL+V`, `CTRL+S`, `ALT+F4`, `LEFT`, `RIGHT`, `UP`, `DOWN`. There is no `WIN+R` or arbitrary combination string.
+Supported keys are `WIN`, `ENTER`, `ESC`, `TAB`, `BACKSPACE`, `DELETE`, `CTRL+A`, `CTRL+C`, `CTRL+V`, `CTRL+S`, `ALT+F4`, `LEFT`, `RIGHT`, `UP`, `DOWN`. Mac additionally accepts `CMD+A`, `CMD+C`, `CMD+V`, `CMD+S`, `CMD+W` and `CMD+SPACE`. Other platforms reject CMD commands. CTRL remains Control on Mac, and WIN is the platform Meta key. There is no `WIN+R` or arbitrary combination string. Use scroll multiples of 120 for portable whole-wheel notches.
 
 ```json
 {

@@ -16,10 +16,13 @@ import { pause } from '../runtime/async'
 import { ScreenCaptureService } from '../screen/ScreenCaptureService'
 import { LocalDesktopBridge } from '../bridge/LocalDesktopBridge'
 import { CartridgeService, compileCartridge, starterCartridge } from '../workflows/CartridgeService'
-import { cartridgeSchema } from '@lens/schemas'
+import { cartridgeSchema, sequenceSchema } from '@lens/schemas'
 import { createTools } from '../webmcp/tools'
+import { BrowserCapabilities } from '../browser/BrowserCapabilities'
 const eventId = monotonicFactory()
 export class LensService {
+  private pairing = false
+  private stopping = false
   readonly session = useSessionStore()
   readonly screen = useScreenStore()
   readonly bridgeState = useBridgeStore()
@@ -30,6 +33,7 @@ export class LensService {
   readonly recorder = new CartridgeService()
   bridge: DesktopBridge = new MockDesktopBridge(this.screen.desktop)
   runtime: ComputerRuntime
+  readonly browser = new BrowserCapabilities()
   readonly tools = createTools(this)
   readonly capture = new ScreenCaptureService(
     () => {
@@ -66,6 +70,10 @@ export class LensService {
       },
       native: () => this.session.mode === 'live',
       pace: () => this.settings.stepDelay,
+      progress: (step, total) => {
+        this.runtimeState.step = step
+        this.runtimeState.total = total
+      },
     })
   }
   async init() {
@@ -105,12 +113,54 @@ export class LensService {
     void this.repository.append(event).catch(() => {
       this.session.persistenceError = 'Could not save the event log. Keep this tab open.'
     })
-    if (type === 'goal.failed' && this.session.mode === 'live') {
-      this.session.authorized = false
-      this.bridgeState.status = 'disconnected'
-      void this.bridge.emergencyStop().catch(() => {
-        this.bridgeState.error = 'Bridge connection lost. Use Ctrl+Alt+F10 to stop native input.'
-      })
+    if (type === 'goal.failed') {
+      this.runtimeState.failure = message
+      if (this.session.mode === 'live' && data?.bridgeFailure) void this.connectionLost(message)
+    }
+    if (type === 'goal.cancelled' && data?.duringExecution && this.session.mode === 'live')
+      void this.stop()
+  }
+  requestSetup(reason = '') {
+    this.session.setupReason = reason
+    this.session.setupOpen = true
+  }
+  private async connectionLost(reason: string) {
+    if (this.runtime.state !== 'failed') this.runtime.cancel()
+    this.session.authorized = false
+    this.bridgeState.status = 'disconnected'
+    this.bridgeState.expiresAt = 0
+    this.requestSetup(reason)
+    await this.bridge.emergencyStop().catch(() => {
+      this.bridgeState.error = 'Bridge connection lost. Use Ctrl+Alt+F10 to stop native input.'
+    })
+  }
+  async checkConnection() {
+    if (
+      this.session.mode !== 'live' ||
+      this.bridgeState.status !== 'connected' ||
+      this.runtime.busy
+    )
+      return
+    const bridge = this.bridge
+    try {
+      const capabilities = await bridge.capabilities()
+      if (bridge !== this.bridge || this.bridgeState.status !== 'connected' || this.runtime.busy)
+        return
+      if (
+        JSON.stringify(capabilities.desktopBounds) !==
+          JSON.stringify(this.bridgeState.capabilities?.desktopBounds) ||
+        JSON.stringify(capabilities.displays) !==
+          JSON.stringify(this.bridgeState.capabilities?.displays)
+      ) {
+        this.screen.geometry.calibrated = false
+        this.bridgeState.capabilities = capabilities
+        this.requestSetup('Your display arrangement changed. Confirm the shared monitor again.')
+      }
+    } catch {
+      if (bridge === this.bridge && this.bridgeState.status === 'connected')
+        await this.connectionLost(
+          'The bridge stopped responding or pairing expired. Start or re-enable it, then pair again.',
+        )
     }
   }
   async observe() {
@@ -179,10 +229,27 @@ export class LensService {
     await this.observe()
   }
   startGoal(text: string, plan?: GoalPlan, signal?: AbortSignal) {
-    if (!this.session.authorized || this.bridgeState.status !== 'connected')
+    if (!this.session.authorized || this.bridgeState.status !== 'connected') {
+      if (this.session.mode === 'live')
+        this.requestSetup('Pair the desktop before running this action.')
       throw new Error('Enable control using the visible session button first.')
+    }
     if (this.runtime.busy) throw new Error('A goal is already active.')
+    if (
+      this.session.mode === 'live' &&
+      (!this.screen.sharing || !this.screen.geometry.calibrated)
+    ) {
+      this.requestSetup('Share your screen and confirm its monitor before running actions.')
+      throw new Error('Complete desktop setup first.')
+    }
+    if (this.session.mode === 'live' && !plan)
+      throw new Error('Live actions need explicit steps. Use a sequence or a recorded workflow.')
     if (!text.trim() || text.length > 2000) throw new Error('Enter a goal of 1 to 2000 characters.')
+    plan = plan ? JSON.parse(JSON.stringify(plan)) : undefined
+    this.runtimeState.lastRun = { text, plan, mode: this.session.mode }
+    this.runtimeState.failure = ''
+    this.runtimeState.step = 0
+    this.runtimeState.total = plan?.steps.length ?? 0
     const goal = plan?.goal ?? { id: ulid(), text }
     this.runtimeState.goal = goal
     this.runtimeState.busy = true
@@ -199,19 +266,59 @@ export class LensService {
       signal,
     )
   }
-  async stop() {
-    this.runtime.cancel()
-    this.session.authorized = false
-    this.bridgeState.status = 'stopped'
-    this.approvals.pending = null
-    this.runtimeState.proposed = null
-    this.event(
-      'control.stopped',
-      'STOP CONTROL. Pending work cleared and bridge actuation disabled.',
+  runSequence(value: unknown, signal?: AbortSignal) {
+    const sequence = sequenceSchema.parse(value)
+    const plan = compileCartridge(
+      {
+        version: 1,
+        id: ulid(),
+        name: sequence.name,
+        description: 'Reviewed action sequence',
+        application: 'Desktop',
+        inputs: {},
+        steps: sequence.steps,
+        assertions: [],
+        approvalRequirements: [],
+        metadata: {
+          createdAt: Date.now(),
+          observationSource: this.screen.observation?.source ?? 'unavailable',
+          author: 'Local session',
+        },
+      },
+      {},
     )
-    await this.bridge.emergencyStop().catch(() => {
-      this.bridgeState.error = 'Bridge did not acknowledge stop. Use Ctrl+Alt+F10 on Windows.'
-    })
+    return this.startGoal(plan.goal.text, plan, signal)
+  }
+  rerunLast(signal?: AbortSignal) {
+    const previous = this.runtimeState.lastRun
+    if (!previous || previous.mode !== this.session.mode)
+      throw new Error('No run is available for this desktop.')
+    const plan = previous.plan ? (JSON.parse(JSON.stringify(previous.plan)) as GoalPlan) : undefined
+    if (plan) plan.goal.id = ulid()
+    return this.startGoal(previous.text, plan, signal)
+  }
+  async stop() {
+    if (this.stopping) return
+    this.stopping = true
+    try {
+      this.runtime.cancel()
+      this.browser.denyCopy()
+      this.session.authorized = false
+      this.bridgeState.expiresAt = 0
+      this.session.setupOpen = false
+      this.bridgeState.status = 'stopped'
+      this.approvals.pending = null
+      this.runtimeState.proposed = null
+      this.event(
+        'control.stopped',
+        'STOP CONTROL. Pending work cleared and bridge actuation disabled.',
+      )
+      await this.bridge.emergencyStop().catch(() => {
+        this.bridgeState.error = 'Bridge did not acknowledge stop. Use Ctrl+Alt+F10, or type stop in the companion terminal.'
+      })
+    } finally {
+      this.stopping = false
+    }
   }
   async shareScreen() {
     if (this.runtime.busy) throw new Error('Stop the current goal before sharing another screen.')
@@ -224,6 +331,7 @@ export class LensService {
     this.screen.sharing = true
     this.screen.geometry = this.capture.getGeometry()
     this.screen.changeRevision = 0
+    this.requestSetup()
     this.event(
       'capture.started',
       'Screen shared with browser permission. Raw frames stay in memory.',
@@ -231,9 +339,12 @@ export class LensService {
     await this.observe()
   }
   async pairBridge(code: string) {
+    if (this.pairing) throw new Error('Pairing is already in progress.')
+    if (this.bridgeState.status === 'connected') return
     if (!this.screen.sharing || this.session.mode !== 'live')
       throw new Error('Share a screen before pairing the desktop bridge.')
     if (this.runtime.busy) throw new Error('Stop the goal before pairing a bridge.')
+    this.pairing = true
     this.session.authorized = false
     this.bridgeState.status = 'connecting'
     this.bridgeState.error = ''
@@ -249,9 +360,12 @@ export class LensService {
       }
       this.bridgeState.capabilities = capabilities
       this.screen.geometry.desktopBounds = { ...capabilities.desktopBounds }
+      const saved = this.savedMapping()
+      if (saved) this.screen.geometry.desktopBounds = saved
       this.screen.geometry.displayScale = capabilities.displayScale
       this.screen.geometry.calibrated = false
       this.bridgeState.status = 'connected'
+      this.bridgeState.expiresAt = bridge.expiresAt
       this.session.authorized = true
       this.runtime = this.makeRuntime()
       this.event(
@@ -266,11 +380,58 @@ export class LensService {
       this.bridgeState.status = 'disconnected'
       await bridge.disconnect().catch(() => {})
       throw error
+    } finally {
+      this.pairing = false
     }
+  }
+  private savedMapping() {
+    try {
+      const value = JSON.parse(localStorage.getItem('lens.capture-mapping') ?? 'null')
+      const b = this.bridgeState.capabilities?.desktopBounds
+      if (value && b && this.mappingFits(value, b)) return value
+    } catch {
+      /* Geometry is optional; authorization is never stored. */
+    }
+    return null
+  }
+  private mappingFits(m: import('@lens/protocol').Bounds, b: import('@lens/protocol').Bounds) {
+    return (
+      [m.x, m.y, m.width, m.height].every(Number.isInteger) &&
+      m.width >= 2 &&
+      m.height >= 2 &&
+      m.x >= b.x &&
+      m.y >= b.y &&
+      m.x + m.width <= b.x + b.width &&
+      m.y + m.height <= b.y + b.height
+    )
+  }
+  confirmMapping() {
+    const g = this.screen.geometry,
+      b = this.bridgeState.capabilities?.desktopBounds
+    if (
+      this.runtime.busy ||
+      !this.screen.sharing ||
+      this.bridgeState.status !== 'connected' ||
+      !b ||
+      !this.mappingFits(g.desktopBounds, b)
+    )
+      throw new Error('Choose a monitor or enter capture bounds inside the reported desktop.')
+    const captureRatio = g.captureWidth / g.captureHeight
+    const mappedRatio = g.desktopBounds.width / g.desktopBounds.height
+    if (Math.abs(captureRatio - mappedRatio) / captureRatio > 0.05)
+      throw new Error(
+        'The mapping shape does not match the shared image. Choose the single monitor you shared.',
+      )
+    g.calibrated = true
+    try {
+      localStorage.setItem('lens.capture-mapping', JSON.stringify(g.desktopBounds))
+    } catch {
+      /* Optional convenience. */
+    }
+    this.session.setupReason = ''
   }
   async cancelGoal() {
     this.runtime.cancel()
-    if (this.session.mode === 'live') await this.stop()
   }
   startRecording() {
     this.recorder.start()

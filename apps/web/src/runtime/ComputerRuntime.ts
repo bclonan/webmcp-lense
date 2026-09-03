@@ -27,7 +27,9 @@ export interface RuntimeHooks {
   policy(value: string): void
   native(): boolean
   pace(): number
+  progress?(step: number, total: number): void
 }
+class BridgeExecutionError extends Error {}
 const transitions: Record<RuntimeState, RuntimeState[]> = {
   idle: ['observing'],
   observing: ['planning', 'action_proposed', 'verifying'],
@@ -65,7 +67,8 @@ export class ComputerRuntime {
     this.hooks.state(next)
   }
   cancel() {
-    if (!this.busy) return
+    if (!this.busy || this.controller?.signal.aborted) return
+    const duringExecution = this.state === 'executing'
     this.controller?.abort()
     this.resolveApproval?.(false)
     this.resolveApproval = undefined
@@ -73,7 +76,9 @@ export class ComputerRuntime {
     this.hooks.approval(null)
     this.hooks.proposed(null)
     this.transition('cancelled')
-    this.hooks.event('goal.cancelled', 'Control cancelled. No further actions will execute.')
+    this.hooks.event('goal.cancelled', 'Control cancelled. No further actions will execute.', {
+      duringExecution,
+    })
   }
   approve(id: string, accepted: boolean) {
     if (id !== this.pendingId || !this.resolveApproval)
@@ -106,7 +111,8 @@ export class ComputerRuntime {
       signal.throwIfAborted()
       if (!plan.steps.length || plan.steps.length > 100)
         throw new Error('A plan must have between 1 and 100 bounded steps.')
-      for (const step of plan.steps) {
+      for (const [index, step] of plan.steps.entries()) {
+        this.hooks.progress?.(index + 1, plan.steps.length)
         signal.throwIfAborted()
         this.transition('observing')
         const before = await this.hooks.observe()
@@ -131,7 +137,9 @@ export class ComputerRuntime {
     } catch (error) {
       if (!signal.aborted) {
         this.transition('failed')
-        this.hooks.event('goal.failed', error instanceof Error ? error.message : String(error))
+        this.hooks.event('goal.failed', error instanceof Error ? error.message : String(error), {
+          bridgeFailure: error instanceof BridgeExecutionError,
+        })
       }
     } finally {
       this.busy = false
@@ -184,15 +192,36 @@ export class ComputerRuntime {
       await pause(3000, signal)
     } else await pause(this.hooks.pace(), signal)
     this.transition('executing')
-    const result = await this.bridge.execute(command)
+    let result
+    try {
+      result = await this.bridge.execute(command)
+    } catch (error) {
+      throw new BridgeExecutionError(error instanceof Error ? error.message : String(error))
+    }
     this.hooks.event(
       'action.executed',
       result.ok ? action.description : (result.error ?? 'Bridge failed'),
       { command, result, action, approvalRequired: policy.decision === 'ASK' },
     )
     signal.throwIfAborted()
-    if (!result.ok) throw new Error(result.error ?? 'Bridge execution failed.')
+    if (!result.ok) throw new BridgeExecutionError(result.error ?? 'Bridge execution failed.')
     this.transition('waiting_for_change')
+    if (
+      action.type === 'pointer.move' ||
+      (action.type === 'keyboard.key' && ['CTRL+C', 'CMD+C'].includes(action.key ?? ''))
+    ) {
+      const after = await this.hooks.observe()
+      signal.throwIfAborted()
+      this.transition('verifying')
+      if (expected && !this.matches(after, expected))
+        throw new Error(`Verification failed: expected ${expected}`)
+      this.hooks.event(
+        'action.verified',
+        'Bridge acknowledged input. This action has no required visual change; clipboard contents are not asserted.',
+        { observationId: after.id },
+      )
+      return
+    }
     const after = await this.hooks.changed(before, signal)
     signal.throwIfAborted()
     this.hooks.event('screen.changed', after.summary, {

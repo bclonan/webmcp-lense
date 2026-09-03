@@ -5,5 +5,6 @@ export const useBridgeStore = defineStore('bridge', {
     status: 'disconnected' as 'disconnected' | 'connected' | 'stopped' | 'connecting',
     capabilities: null as BridgeCapabilities | null,
     error: '',
+    expiresAt: 0,
   }),
 })

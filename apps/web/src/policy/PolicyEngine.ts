@@ -26,7 +26,7 @@ export class PolicyEngine {
       action.consequential ||
       target?.consequential ||
       /\b(submit|delete|send|purchase|pay|save|close)\b/i.test(content) ||
-      ['DELETE', 'ALT+F4', 'CTRL+S', 'CTRL+V'].includes(action.key ?? '')
+      ['DELETE', 'ALT+F4', 'CTRL+S', 'CTRL+V', 'CMD+S', 'CMD+V', 'CMD+W'].includes(action.key ?? '')
     )
       return {
         decision: 'ASK',
