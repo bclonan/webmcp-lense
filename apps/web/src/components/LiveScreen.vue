@@ -30,12 +30,7 @@ onBeforeUnmount(() => {
       <Monitor :size="32" />
       <h3>Your screen belongs here.</h3>
       <p>Share a screen or window using the browser permission dialog.</p>
-      <button
-        class="button primary"
-        @click="lens.shareScreen().catch((e) => (lens.session.error = String(e)))"
-      >
-        Share Screen
-      </button>
+      <button class="button primary" @click="lens.requestSetup()">Set up screen sharing</button>
     </div>
   </div>
 </template>

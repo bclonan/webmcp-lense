@@ -1,4 +1,27 @@
 use serde::{Deserialize, Serialize};
+pub fn supported_keys(platform: &str) -> Vec<&'static str> {
+    let mut keys = vec![
+        "WIN",
+        "ENTER",
+        "ESC",
+        "TAB",
+        "BACKSPACE",
+        "DELETE",
+        "CTRL+A",
+        "CTRL+C",
+        "CTRL+V",
+        "CTRL+S",
+        "ALT+F4",
+        "LEFT",
+        "RIGHT",
+        "UP",
+        "DOWN",
+    ];
+    if platform == "macos" {
+        keys.extend(["CMD+A", "CMD+C", "CMD+V", "CMD+S", "CMD+W", "CMD+SPACE"]);
+    }
+    keys
+}
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Point {
@@ -11,6 +34,34 @@ pub struct Bounds {
     pub y: i32,
     pub width: i32,
     pub height: i32,
+}
+#[derive(Serialize)]
+pub struct Display {
+    pub id: String,
+    pub name: String,
+    pub bounds: Bounds,
+    pub primary: bool,
+}
+#[cfg(any(target_os = "macos", target_os = "linux", test))]
+pub fn display_bounds(displays: &[Display]) -> Bounds {
+    let x = displays.iter().map(|d| d.bounds.x).min().unwrap_or(0);
+    let y = displays.iter().map(|d| d.bounds.y).min().unwrap_or(0);
+    let right = displays
+        .iter()
+        .map(|d| d.bounds.x.saturating_add(d.bounds.width))
+        .max()
+        .unwrap_or(0);
+    let bottom = displays
+        .iter()
+        .map(|d| d.bounds.y.saturating_add(d.bounds.height))
+        .max()
+        .unwrap_or(0);
+    Bounds {
+        x,
+        y,
+        width: right.saturating_sub(x),
+        height: bottom.saturating_sub(y),
+    }
 }
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", deny_unknown_fields)]
@@ -67,6 +118,18 @@ pub enum Key {
     Save,
     #[serde(rename = "ALT+F4")]
     Close,
+    #[serde(rename = "CMD+A")]
+    CommandSelectAll,
+    #[serde(rename = "CMD+C")]
+    CommandCopy,
+    #[serde(rename = "CMD+V")]
+    CommandPaste,
+    #[serde(rename = "CMD+S")]
+    CommandSave,
+    #[serde(rename = "CMD+W")]
+    CommandClose,
+    #[serde(rename = "CMD+SPACE")]
+    Spotlight,
     #[serde(rename = "LEFT")]
     Left,
     #[serde(rename = "RIGHT")]
@@ -97,6 +160,15 @@ impl Command {
                 && (p.x as i64) < bounds.x as i64 + bounds.width as i64
                 && (p.y as i64) < bounds.y as i64 + bounds.height as i64
         };
+        match self {
+            Self::Move { point, .. } | Self::Click { point, .. } if !point_valid(point) => {
+                return Err("Point outside desktop bounds".into());
+            }
+            Self::Drag { points, .. } if points.iter().any(|p| !point_valid(p)) => {
+                return Err("Point outside desktop bounds".into());
+            }
+            _ => {}
+        }
         let valid = match self {
             Self::Move { point, .. } | Self::Click { point, .. } => point_valid(point),
             Self::Drag {
@@ -124,6 +196,39 @@ impl Command {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn unions_mixed_monitor_positions_without_scaling_origins() {
+        let displays = vec![
+            Display {
+                id: "left".into(),
+                name: "left".into(),
+                primary: false,
+                bounds: Bounds {
+                    x: -1440,
+                    y: -300,
+                    width: 1440,
+                    height: 900,
+                },
+            },
+            Display {
+                id: "retina".into(),
+                name: "retina".into(),
+                primary: true,
+                bounds: Bounds {
+                    x: 0,
+                    y: 0,
+                    width: 1512,
+                    height: 982,
+                },
+            },
+        ];
+        let bounds = display_bounds(&displays);
+        assert_eq!(
+            (bounds.x, bounds.y, bounds.width, bounds.height),
+            (-1440, -300, 2952, 1282)
+        );
+        assert_eq!(display_bounds(&[]).width, 0);
+    }
     fn b() -> Bounds {
         Bounds {
             x: -1920,

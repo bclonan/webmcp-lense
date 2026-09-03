@@ -5,3 +5,6 @@ test-results/
 playwright-report/
 .env
 *.local
+.netlify/
+release/
+apps/web/public/downloads/

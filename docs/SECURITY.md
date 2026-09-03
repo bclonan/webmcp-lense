@@ -6,14 +6,16 @@ Lens requires two separate user actions for live control. **Share Screen** opens
 
 - The bridge binds IPv4 loopback `127.0.0.1:47653` only. There is no remote listener.
 - Every request checks the exact configured Origin and Host. No wildcard CORS origins or ambient cookies are accepted.
-- Pairing uses 128 bits of OS randomness. A successful pairing consumes the code and issues a 256-bit session token for 30 minutes. Five attempts per 30 seconds limit code guessing.
+- Pairing uses 128 bits of OS randomness. Codes expire after five minutes. A successful pairing consumes the code and issues a 256-bit session token for 30 minutes. Five attempts per 30 seconds limit code guessing.
 - Bearer tokens stay in browser memory and never enter IndexedDB, URLs, event history or cartridges.
 - JSON requests must declare a body length of at most 16 KiB. Unknown fields and action types fail validation. Points, text, scroll amounts and path duration are bounded.
 - Only one input action can run at a time. The bridge refuses concurrent actions and duplicate command IDs. It does not queue or retry mutations.
 - STOP, disconnect and the native hotkey invalidate the session and in-flight execution epoch. Drag/text input checks cancellation between input samples, with drag checks about every 10 milliseconds. Pressed buttons and keys are released on the normal error/stop path.
-- Rearming requires the visible native console command `enable`, then a fresh browser pairing. The bridge refuses startup if it cannot register Ctrl+Alt+F10.
+- Rearming requires the visible New pairing code button in Lens Bridge, then a fresh browser pairing. The bridge refuses startup if it cannot register Ctrl+Alt+F10.
 
 ## Input limits
+
+The macOS backend respects Accessibility permission; Lens never grants it. Screen Recording permission belongs to the browser's capture flow. Mac hotkey events run on the main application event loop. Linux input and the independent hotkey require X11; the bridge rejects Wayland rather than silently selecting XWayland. All platforms use the same pairing, command bounds, cancellation and duplicate-ID checks. Text input does not use the system clipboard.
 
 The Windows backend uses `SendInput` with Unicode keyboard input and physical virtual-desktop coordinates. It requests per-monitor DPI awareness and checks that the input desktop is `Default`. The process never elevates itself, changes privileges or attempts to interact with a security desktop. Windows UIPI may reject input into higher-integrity applications. The bridge reports a failure instead of working around that restriction.
 
@@ -25,11 +27,15 @@ The deterministic browser policy returns ALLOW, ASK or BLOCK. Consequential regi
 
 Every ASK produces a visible pending approval. Execution waits for that exact approval ID. A changed observation invalidates the approval. Cancellation removes pending work. STOP CONTROL stays visible while scrolling, cancels the runtime and disables bridge input while retaining history.
 
+A denied or stale approval, policy rejection, missing target, or unverified visual result stops the remaining sequence without revoking a healthy bridge session. Nothing retries automatically. An explicit rerun starts at the first step with fresh command IDs, observations and approvals. A bridge transport or execution error revokes control. Cancelling while native input is in flight also stops the bridge; cancelling an approval leaves pairing intact.
+
 Because live semantic recognition is absent, live clicks, drags and keyboard input always require review. Keyboard input pauses three seconds after approval so the user can focus the intended application. Prefer a stable monitor capture; moving a window invalidates a manually entered mapping even if Lens cannot detect the movement.
 
 ## Data
 
-Captured video and raw screenshots remain in memory and are never persisted. There is no screenshot-retention switch in this version. Tracks stop when the user ends sharing, leaves Workspace or unloads the page. Events can contain typed text and semantic observations, which stay in origin-local IndexedDB. Settings includes a read-only history viewer. Demo data is fictional.
+Captured video and raw screenshots remain in memory and are never persisted. There is no screenshot-retention switch in this version. Tracks stop when the user ends sharing or unloads the page. Navigation inside Lens preserves capture and pairing, displays an active-sharing banner, and cancels a running sequence when leaving Workspace. Events can contain typed text and semantic observations, which stay in origin-local IndexedDB. Settings includes a read-only history viewer. Demo data is fictional.
+
+Only capture bounds are remembered in localStorage. Pairing codes and tokens remain in memory. Clipboard reads require a visible click and stay in the local review field; they do not enter the event log or an agent tool result. Choosing to type that reviewed text places it in the ordinary action log. Agent clipboard-write proposals wait for the visible copy button and normal browser permission. Lens exposes no background clipboard-reading tool, arbitrary JavaScript execution, or cross-browser tab control.
 
 The static app includes its fonts and makes no provider calls. A future remote vision adapter must disclose its data destination and obtain a separate opt-in before sending frames. A provider key must not be bundled into client code.
 

@@ -1,0 +1,192 @@
+{
+  "$ref": "#/definitions/bridge-capabilities",
+  "definitions": {
+    "bridge-capabilities": {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "type": "number",
+          "const": 1
+        },
+        "bridgeVersion": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{32}$"
+        },
+        "timestamp": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "device": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "displayRevision": {
+          "type": "string",
+          "maxLength": 8000
+        },
+        "keys": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "WIN",
+              "ENTER",
+              "ESC",
+              "TAB",
+              "BACKSPACE",
+              "DELETE",
+              "CTRL+A",
+              "CTRL+C",
+              "CTRL+V",
+              "CTRL+S",
+              "ALT+F4",
+              "CMD+A",
+              "CMD+C",
+              "CMD+V",
+              "CMD+S",
+              "CMD+W",
+              "CMD+SPACE",
+              "LEFT",
+              "RIGHT",
+              "UP",
+              "DOWN"
+            ]
+          }
+        },
+        "platform": {
+          "type": "string",
+          "enum": [
+            "mock",
+            "windows",
+            "macos",
+            "linux"
+          ]
+        },
+        "coordinateSpace": {
+          "type": "string",
+          "enum": [
+            "physical-pixels",
+            "logical-points"
+          ]
+        },
+        "desktopBounds": {
+          "type": "object",
+          "properties": {
+            "x": {
+              "type": "number"
+            },
+            "y": {
+              "type": "number"
+            },
+            "width": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "height": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          },
+          "required": [
+            "x",
+            "y",
+            "width",
+            "height"
+          ],
+          "additionalProperties": false
+        },
+        "displayScale": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "commands": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "pointer.move",
+              "pointer.click",
+              "pointer.drag",
+              "keyboard.text",
+              "keyboard.key",
+              "scroll"
+            ]
+          }
+        },
+        "emergencyStop": {
+          "type": "boolean"
+        },
+        "displays": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "bounds": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "width": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "height": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "width",
+                  "height"
+                ],
+                "additionalProperties": false
+              },
+              "primary": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "bounds",
+              "primary"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "bridgeVersion",
+        "sessionId",
+        "timestamp",
+        "device",
+        "displayRevision",
+        "keys",
+        "platform",
+        "desktopBounds",
+        "displayScale",
+        "commands",
+        "emergencyStop"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

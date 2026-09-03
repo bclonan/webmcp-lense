@@ -1,74 +1,75 @@
-# Desktop protocol v1
+# Desktop protocol 1
 
-Published validators are also available as `packages/schemas/desktop-command.schema.json`, `desktop-result.schema.json` and `capability-cartridge.schema.json`. Regenerate them with `pnpm export:schemas` after changing the Zod definitions.
+Lens Bridge 0.2.1 speaks explicit wire protocol 1. The protocol version is independent of the app version. A mismatched version fails before input. The prior unversioned 0.1.0 bridge is incompatible and must be updated.
 
-The browser uses the TypeScript `DesktopBridge` interface. The mock implementation mutates a browser-only desktop. The local implementation sends POST JSON to `http://127.0.0.1:47653`. There is no generic execute-string method.
+## Canonical schemas
 
-```ts
-interface DesktopBridge {
-  connect(): Promise<void>
-  disconnect(): Promise<void>
-  capabilities(): Promise<BridgeCapabilities>
-  execute(command: DesktopCommand): Promise<DesktopResult>
-  emergencyStop(): Promise<void>
+`packages/schemas/src/index.ts` defines the strict Zod command, request, receipt and capability validators used by the web adapter. `packages/protocol/src/index.ts` defines the domain types. Matching Rust Serde types live in `apps/bridge/src/protocol.rs` and transport envelopes in `src/server.rs`. Run `pnpm export:schemas` to regenerate portable JSON schemas. `bridge-request.schema.json` references the existing bounded command shape inline; it does not introduce another command vocabulary.
+
+## Pair and negotiate
+
+All endpoints accept POST JSON on loopback port 47653 with an exact allowed Origin and Host. Pair first:
+
+```json
+{"protocolVersion":1,"code":"single-use code from the native window"}
+```
+
+`POST /pair` returns `protocolVersion`, `bridgeVersion`, `sessionId`, Unix-millisecond `timestamp`, `token` and `expiresIn`. The code contains 128 random bits, expires in five minutes and is consumed once. The 256-bit bearer token authorizes a maximum 30-minute session. There are at most five pairing attempts per 30-second window.
+
+A pairing request without `protocolVersion` fails before consuming its code or counting a pairing attempt. For this old browser request only, the error reply uses a readable string in `error`, the stable code in `errorCode`, and the structured object in `errorDetails`. Older tabs can display the reload instructions instead of `[object Object]`. This compatibility reply does not permit unversioned pairing or input.
+
+The browser retries a temporary capability-read failure once after 250 ms and combines concurrent checks. It never retries pairing or execution automatically. Timeout recovery requires the user to obtain another code or inspect the target app before proposing another action.
+
+Subsequent requests require `Authorization: Bearer <token>`. `POST /capabilities`, `/disconnect` and `/stop` accept only:
+
+```json
+{"protocolVersion":1,"sessionId":"32 lowercase hex characters","timestamp":1788364800000}
+```
+
+Use the actual current timestamp. Requests more than 30 seconds from the system clock are rejected. Capability results include the bridge/protocol versions, session ID, timestamp, platform, device, coordinate space, desktop bounds, monitor list, display scale, display revision, supported commands, supported key names and emergency-stop availability. The opaque display revision represents the current monitor layout.
+
+## Execute and receive
+
+`POST /execute` wraps the existing bounded command:
+
+```json
+{
+  "protocolVersion":1,
+  "sessionId":"32 lowercase hex characters",
+  "timestamp":1788364800000,
+  "displayRevision":"opaque value from capabilities",
+  "command":{"id":"move-1","type":"pointer.move","point":{"x":842,"y":514}}
 }
 ```
 
-## Transport
+Coordinates are native display coordinates, not CSS pixels. `apps/web/src/screen/coordinates.ts` maps normalized positions in a confirmed capture to physical pixels on Windows/X11 or logical points on macOS. Negative monitor origins and Retina capture scaling remain explicit. The bridge checks coordinates and rejects a changed display revision. A new capability result invalidates a changed browser mapping, which requires visible reconfirmation.
 
-All requests include the exact allowed Origin, an allowed Host and `Content-Type: application/json`. Authenticated requests also include `Authorization: Bearer <session-token>`. Maximum body size is 16 KiB; chunked or unknown-length request bodies are rejected. Responses are JSON with `Cache-Control: no-store`. No endpoint accepts cookies.
+Successful execution returns:
 
-| Endpoint             | Body                          | Result                                                                          |
-| -------------------- | ----------------------------- | ------------------------------------------------------------------------------- |
-| `POST /pair`         | `{ "code": "one-time-code" }` | `{ "token": "64-hex-characters", "expiresIn": 1800 }`                           |
-| `POST /capabilities` | `{}`                          | Platform, physical desktop bounds, scale, command names, emergency-stop support |
-| `POST /execute`      | One command below             | DesktopResult                                                                   |
-| `POST /stop`         | `{}`                          | `{ "ok": true }`; revokes token and stops in-flight input                       |
-| `POST /disconnect`   | `{}`                          | Same fail-closed behavior as stop                                               |
+```json
+{
+  "protocolVersion":1,"bridgeVersion":"0.2.0",
+  "sessionId":"32 lowercase hex characters","commandId":"move-1",
+  "timestamp":1788364800100,"status":"completed",
+  "result":{"id":"move-1","ok":true,"executedAt":1788364800100}
+}
+```
 
-The companion supports CORS OPTIONS for the exact allowed origin, including the private-network preflight header. Browsers may impose their own local-network permission prompt. The app does not bypass it.
+A native execution failure returns status `failed`, `result.ok: false`, `result.error`, and an `error` object with a stable code and message. Rejected requests return a non-2xx response with protocol/bridge versions, timestamp and `error: {code,message}`. Error codes include `protocol_mismatch`, `invalid_request`, `invalid_command`, `invalid_coordinates`, `unsupported_action`, `session_not_paired`, `session_expired`, `pairing_rejected`, `stale_command`, `screen_changed`, `control_paused`, `duplicate_command`, `busy`, `origin_denied`, `permission_denied` and `execution_failed`.
+
+Only one command executes at a time. Concurrent mutations are rejected, never queued. IDs may execute only once per session, with a maximum of 10,000 IDs. An explicit rerun creates new IDs and returns through the browser's approval flow. The native action receipt confirms attempted input delivery; it does not prove the target application's intended result.
 
 ## Commands
 
-Every command has a nonempty ASCII `id`, maximum 64 bytes. Native IDs are single-use within the paired session. The browser generates ULIDs. Coordinates are integer physical pixels inside the companion's reported desktop rectangle; they can be negative on a monitor left of or above the primary monitor.
+| Type | Payload limits |
+| --- | --- |
+| `pointer.move` | One integer native point inside desktop bounds |
+| `pointer.click` | One native point; left or right button |
+| `pointer.drag` | 2 to 128 native points; 50 to 5,000 ms |
+| `keyboard.text` | 1 to 2,000 UTF-16 units; no NUL |
+| `keyboard.key` | One enumerated key or shortcut supported by the platform |
+| `scroll` | Integer delta from -1,200 to 1,200 |
 
-| Type            | Fields beyond `id` and `type`                                                |
-| --------------- | ---------------------------------------------------------------------------- |
-| `pointer.move`  | `point: { x, y }`                                                            |
-| `pointer.click` | `point: { x, y }`, `button: "left"` or `"right"`                             |
-| `pointer.drag`  | `points: [{ x, y }, ...]`, 2 to 128 points; `durationMs`, integer 50 to 5000 |
-| `keyboard.text` | `text`, 1 to 2000 UTF-16 units, no NUL on Windows                            |
-| `keyboard.key`  | `key`, one of the enum values below                                          |
-| `scroll`        | `delta`, integer -1200 to 1200; native wheel units, positive upward          |
+Keys shared by the backends are WIN, ENTER, ESC, TAB, BACKSPACE, DELETE, CTRL+A/C/V/S, ALT+F4, LEFT, RIGHT, UP and DOWN. macOS also advertises CMD+A/C/V/S/W and CMD+SPACE. The bridge and web adapter reject unadvertised keys. Command IDs are bounded to 64 ASCII characters. Unknown fields fail validation.
 
-Supported keys are `WIN`, `ENTER`, `ESC`, `TAB`, `BACKSPACE`, `DELETE`, `CTRL+A`, `CTRL+C`, `CTRL+V`, `CTRL+S`, `ALT+F4`, `LEFT`, `RIGHT`, `UP`, `DOWN`. There is no `WIN+R` or arbitrary combination string.
-
-```json
-{
-  "id": "01M1TESTCOMMAND",
-  "type": "pointer.drag",
-  "points": [
-    { "x": 120, "y": 220 },
-    { "x": 250, "y": 220 }
-  ],
-  "durationMs": 600
-}
-```
-
-## Results and errors
-
-```json
-{
-  "id": "01M1TESTCOMMAND",
-  "ok": true,
-  "executedAt": 1788372000000
-}
-```
-
-`executedAt` is epoch milliseconds when the command attempt finishes. `error` is optional and contains a readable failure message when `ok` is false. A receipt is not semantic proof of success. The browser must observe and verify afterward.
-
-Malformed or disallowed requests return a non-2xx status and `{ "error": "message" }`. Native input failures for an admitted command return its receipt with `ok: false`. The browser validates receipt shape and matching command ID. It never retries a command after an uncertain network result.
-
-## Geometry
-
-Capabilities report `platform`, `desktopBounds`, `displayScale`, `commands`, and `emergencyStop`. The Windows backend returns physical virtual-desktop bounds and `displayScale: 1` because it is already DPI aware. That scalar is not a claim that every monitor uses 100% logical scaling. Calibration maps a captured window or monitor into the correct subrectangle. A normalized endpoint of 1 maps to the final in-bounds pixel, not the first pixel beyond the display.
+There is no arbitrary shell, URL execution, native code, clipboard, window enumeration or screenshot command. Browser screen sharing supplies observations and the application owns the observe, approve, execute, observe, verify loop. Native input never implies semantic success.

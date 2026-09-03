@@ -1,0 +1,93 @@
+{
+  "$ref": "#/definitions/bridge-receipt",
+  "definitions": {
+    "bridge-receipt": {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "type": "number",
+          "const": 1
+        },
+        "bridgeVersion": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{32}$"
+        },
+        "commandId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "timestamp": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "failed"
+          ]
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "ok": {
+              "type": "boolean"
+            },
+            "executedAt": {
+              "type": "number"
+            },
+            "error": {
+              "type": "string",
+              "maxLength": 1000
+            }
+          },
+          "required": [
+            "id",
+            "ok",
+            "executedAt"
+          ],
+          "additionalProperties": false
+        },
+        "error": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "maxLength": 80
+            },
+            "message": {
+              "type": "string",
+              "maxLength": 1000
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "bridgeVersion",
+        "sessionId",
+        "commandId",
+        "timestamp",
+        "status",
+        "result"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

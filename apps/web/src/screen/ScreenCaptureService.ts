@@ -5,7 +5,6 @@ export class ScreenCaptureService {
   private stream: MediaStream | null = null
   private video: HTMLVideoElement | null = null
   private sampleId = 0
-  private lastSample = 0
   private generation = 0
   readonly detector = new VisualChangeDetector()
   constructor(
@@ -39,7 +38,6 @@ export class ScreenCaptureService {
     }
     if (generation !== this.generation) throw new Error('Screen sharing was cancelled.')
     this.detector.reset()
-    this.lastSample = 0
     this.sample()
     return stream
   }
@@ -50,8 +48,7 @@ export class ScreenCaptureService {
     this.stream = null
     this.video = null
     if (video) {
-      if (video.cancelVideoFrameCallback) video.cancelVideoFrameCallback(this.sampleId)
-      else cancelAnimationFrame(this.sampleId)
+      window.clearTimeout(this.sampleId)
       video.pause()
       video.srcObject = null
     }
@@ -97,10 +94,9 @@ export class ScreenCaptureService {
     canvas.width = 128
     canvas.height = 72
     const ctx = canvas.getContext('2d', { willReadFrequently: true })!
-    const tick = (time: number) => {
+    const tick = () => {
       if (this.video !== video) return
-      if (video.videoWidth && time - this.lastSample >= this.interval()) {
-        this.lastSample = time
+      if (video.videoWidth && video.readyState >= 2) {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
         const result = this.detector.compare(
           ctx.getImageData(0, 0, canvas.width, canvas.height).data,
@@ -108,12 +104,10 @@ export class ScreenCaptureService {
         )
         if (result.changed) this.onChange(result.difference)
       }
-      this.sampleId = video.requestVideoFrameCallback
-        ? video.requestVideoFrameCallback(tick)
-        : requestAnimationFrame(tick)
+      this.sampleId = window.setTimeout(tick, Math.max(100, this.interval()))
     }
-    this.sampleId = video.requestVideoFrameCallback
-      ? video.requestVideoFrameCallback(tick)
-      : requestAnimationFrame(tick)
+    // Prime before the first action. Static capture streams may deliver no new
+    // frame callback after a change that arrived inside the sampling interval.
+    tick()
   }
 }

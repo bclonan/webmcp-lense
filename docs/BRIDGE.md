@@ -1,50 +1,63 @@
-# Windows bridge
+# Lens Bridge
 
-The Rust companion owns authorized input and no application intelligence. Direct dependencies are `serde`, `serde_json`, `tiny_http`, `getrandom` and Windows-only `windows-sys`. The input backend is a Rust trait, independent of transport handling. The browser's `DesktopBridge` interface also permits a future transport replacement.
+The canonical companion is the existing Rust crate in `apps/bridge`. Version 0.2.0 adds an eframe native window around the same HTTP server and input backends. There is no second bridge, hosted native server or agent reasoning in the executable.
 
-## Run
+- `src/main.rs` starts the GUI.
+- `src/gui.rs` owns visible setup, pairing state, pause/disconnect, new codes, quit and the in-memory local action log.
+- `src/server.rs` owns loopback HTTP, strict origin/session checks, version negotiation, validation and receipts.
+- `src/protocol.rs` defines bounded commands matching `packages/schemas/src/index.ts`.
+- `src/session.rs` owns random secrets, expiry, replay protection and stop epochs.
+- `src/windows_input.rs` uses Windows SendInput and monitor APIs.
+- `src/unix_input.rs` uses Enigo on macOS and Linux X11, with native display enumeration.
+- `src/emergency.rs` owns Ctrl+Alt+F10 registration. Closing/restarting the window releases the registration.
 
-Use Windows 10 or 11, stable Rust with the MSVC toolchain, and Visual Studio C++ Build Tools. Run `pnpm dev:bridge` in a visible terminal. The app's default origin is `http://127.0.0.1:5176`; the bridge binds `127.0.0.1:47653` regardless of origin.
+Transport is POST JSON over `http://127.0.0.1:47653`. The packaged app accepts only `https://lens-webmcp.netlify.app` by default. A user can explicitly change the exact origin in the native window. No tokens persist to disk. The latest 200 action metadata entries appear locally in the window; typed content and pairing secrets are excluded. The log clears when the process exits.
 
-For another origin:
+See [desktop setup](DESKTOP_SETUP.md), [protocol](PROTOCOL.md), [platforms](PLATFORMS.md) and [security](SECURITY.md).
+
+## Contributor commands
 
 ```sh
-cargo run --manifest-path apps/bridge/Cargo.toml -- --origin http://localhost:5176
+pnpm dev:bridge
+pnpm build:bridge
+pnpm package:bridge
+pnpm test:bridge
+cargo fmt --manifest-path apps/bridge/Cargo.toml -- --check
+cargo clippy --locked --manifest-path apps/bridge/Cargo.toml --all-targets -- -D warnings
 ```
 
-Open Lens at that exact origin. A scheme, hostname or port mismatch is rejected. Keep the console open. `stop` disables input, `enable` rotates the pairing code and permits a new pairing, and `quit` exits. Closing console stdin also disables input. There is no autostart service.
+`pnpm dev:bridge` opens the same GUI with the local web origin. An explicit origin also works:
 
-## Platform APIs
+```sh
+cargo run --manifest-path apps/bridge/Cargo.toml -- --origin http://127.0.0.1:5178
+```
 
-| API                                                             | Use                                                                                |
-| --------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `SendInput`                                                     | Mouse movement, left/right button events, wheel events, key events and UTF-16 text |
-| `SetProcessDpiAwarenessContext`                                 | Request per-monitor DPI awareness v2                                               |
-| `GetSystemMetrics`                                              | Physical virtual-desktop origin and dimensions                                     |
-| `OpenInputDesktop`, `GetUserObjectInformationW`, `CloseDesktop` | Reject input when the active desktop is not `Default` or cannot be inspected       |
-| `RegisterHotKey`, `GetMessageW`, `UnregisterHotKey`             | Independent Ctrl+Alt+F10 emergency-stop loop                                       |
-| OS randomness through `getrandom`                               | Pairing code and session-token generation                                          |
+## Native release process
 
-Absolute mouse input uses `MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK`. Drag samples interpolate the requested path and check cancellation about every 10 milliseconds. Text uses Unicode keydown/keyup pairs. Combo keys release in reverse order. The process never changes integrity level or launches another process.
+`.github/workflows/bridge.yml` builds Windows x64, macOS arm64, macOS x64 and Ubuntu 24.04 x64 independently. Each job checks formatting, runs Clippy and tests, builds with Cargo.lock, and runs `scripts/package-bridge.mjs`. The packaging script reads the crate version and commit date, then writes a versioned EXE, DMG or DEB with a JSON SHA-256 manifest. Rust dependencies are locked; OS runner and toolchain updates can change resulting bytes between builds.
 
-Microsoft documents [SendInput and UIPI limits](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendinput), [DPI awareness](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setprocessdpiawarenesscontext), and [RegisterHotKey](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-registerhotkey).
+A `bridge-v0.2.0` tag triggers a GitHub Release only after all build jobs succeed. The private repository's release assets require authentication. Download the four CI artifacts or release packages to `release/packages`, preserving their manifests. Run:
+
+```sh
+pnpm stage:bridge
+pnpm build
+node --use-system-ca scripts/verify-bridge-downloads.mjs https://lens-webmcp.netlify.app
+```
+
+Run the verification command after deploying the built site. Staging rejects missing packages, mixed versions and checksum mismatches. It copies only release packages to the ignored `apps/web/public/downloads` directory and updates the centralized `bridge-releases.json`. Netlify publishes those files with the app. Do not substitute debug binaries or advertise URLs before verifying their bytes.
+
+No publisher signing or Apple notarization is configured. Native release build and download status is recorded in [VERIFICATION.md](VERIFICATION.md).
 
 ## Manual Paint and Notepad check
 
-This check is interactive. Automated tests compile the Windows backend and test transport with a substitute input backend; they do not type into your real applications.
+1. Download the published Windows artifact and compare its SHA-256 with the setup dialog.
+2. Open Lens Bridge. Confirm its website, visible pairing code and five-minute countdown.
+3. Open desktop setup, share a monitor, pair and confirm the monitor mapping.
+4. Use Test connection and verify version, device, commands and latency.
+5. Propose pressing WIN. Approve, focus the desktop during the countdown, and confirm Start opens.
+6. Propose typing Paint and then ENTER as separate steps. Approve each and confirm Paint opens. Use a blank drawing for bounded move/click/drag/scroll checks. Do not save over an existing file.
+7. Use a new untitled Notepad document for typing and shortcut checks.
+8. Disconnect, confirm old commands fail, issue a new code, and reconnect.
+9. Press Ctrl+Alt+F10. Verify the next command fails. Close Lens Bridge and confirm port 47653 closes and no held input remains.
 
-1. Open a disposable Notepad document or blank Paint canvas yourself. Keep Lens visible alongside it if possible.
-2. In Lens, press Share Screen and choose the monitor or window in the browser dialog. No permissions are pre-granted.
-3. Pair with the code printed by the companion. Confirm the physical bounds represented by the captured image. For a single full-monitor capture, use that monitor's physical origin, width and height. For a window, enter the captured content rectangle, which may exclude window borders.
-4. Select `desktop_click` in the reviewed action composer. Enter `{ "point": { "x": 0.5, "y": 0.5 } }` only if the center of your shared capture is inside the intended editing area. Propose, inspect, and approve it. The selected desktop area receives a click.
-5. For Notepad, select `desktop_type` and enter `{ "text": "The house is finished." }`. After approval, focus Notepad during the three-second pause. Confirm the resulting text yourself. The live detector only verifies that pixels changed.
-6. For Paint, use `desktop_drag` with a short path wholly inside the visible canvas. Map each point to 0..1 relative to the full capture. Approve and inspect each stroke. The fixture's house coordinates are not valid for an arbitrary real Paint layout.
-7. To attempt launching through Start, propose `desktop_press` with `WIN`, then type `Paint` or `Notepad`, then press `ENTER`, one reviewed action at a time. During each keyboard pause, focus the appropriate desktop or search field. Lens does not select the foreground window automatically.
-8. Press Ctrl+Alt+F10 and attempt another action. Input should be rejected. Type `enable` in the bridge console and pair again to resume.
-9. Stop sharing or leave Workspace. All capture tracks stop and Lens disables control. Reloading never re-pairs or restarts a goal.
-
-Use a stable capture layout. Recalibrate if a window moves, resizes or switches monitors. If an action does not cause a sufficiently large pixel change within four seconds, the runtime fails and disables live actuation. Lower the threshold in Settings if appropriate, then pair again. Never infer success from a command receipt alone.
-
-## Known limits
-
-The bridge does not know window identities, application state or semantic targets. It does not read the filesystem or screenshot the desktop. Real recognition and multimodal planning require a future browser-side adapter. Keyboard focus is manual. Windows may reject input into elevated applications. Secure desktop interaction is deliberately unsupported. Hosted HTTPS pages may face mixed-content or local-network restrictions; use the localhost app for the supported native workflow.
+Automated protocol tests use a fake input backend. They do not count as native desktop or downloaded-package smoke tests.

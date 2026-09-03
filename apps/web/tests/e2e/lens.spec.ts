@@ -1,4 +1,19 @@
 import { test, expect } from '@playwright/test'
+test('root opens Workspace with visible tools, status and timeline', async ({ page }) => {
+  await page.goto('/')
+  await expect(page).toHaveURL(/\/session$/)
+  await expect(page.getByRole('link', { name: 'WebMCP status and tools' })).toContainText(
+    '19 tools',
+  )
+  await expect(page.getByRole('heading', { name: 'WebMCP tools 19' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /Event timeline/ })).toBeVisible()
+  const timeline = await page.locator('.timeline').boundingBox()
+  expect(timeline!.y).toBeLessThan(800)
+  await page.getByRole('button', { name: 'screen_get_context read', exact: true }).click()
+  await page.getByRole('button', { name: 'Call tool', exact: true }).click()
+  await expect(page.getByLabel('Workspace tool result')).toContainText('fixture')
+  await expect(page).toHaveURL(/\/session$/)
+})
 test('Paint completes with visible strokes and reload revokes control', async ({ page }) => {
   await page.goto('/demo')
   await page.getByRole('button', { name: 'Run Paint demo' }).click()
@@ -60,7 +75,7 @@ test('record, replay, edit and export a cartridge', async ({ page }) => {
 })
 test('local tools use validation and registered shared services', async ({ page }) => {
   await page.goto('/tools')
-  await expect(page.locator('.tool-list button')).toHaveCount(15)
+  await expect(page.locator('.tool-list button')).toHaveCount(19)
   await page.getByRole('button', { name: 'Invoke tool' }).click()
   await expect(page.getByLabel('Last tool output')).toContainText('fixture')
   await page.getByRole('button', { name: 'desktop_type', exact: false }).click()
@@ -94,10 +109,10 @@ test('native WebMCP adapter registers handlers with cleanup signals', async ({ p
     const tools = (window as any).__nativeLensTools
     return { count: Object.keys(tools).length, result: await tools.screen_get_context.execute({}) }
   })
-  expect(result.count).toBe(15)
+  expect(result.count).toBe(19)
   expect(result.result.data.source).toBe('fixture')
 })
-test('screen sharing uses explicit click and releases all tracks on navigation', async ({
+test('screen sharing persists across Lens pages and releases tracks on Stop sharing', async ({
   page,
 }) => {
   await page.addInitScript(() => {
@@ -127,10 +142,15 @@ test('screen sharing uses explicit click and releases all tracks on navigation',
   })
   await page.goto('/session')
   expect(await page.evaluate(() => (window as any).__captureCalls)).toBe(0)
-  await page.getByRole('button', { name: 'Share Screen', exact: true }).click()
+  await page.getByRole('button', { name: 'Desktop setup', exact: true }).click()
+  await page.getByRole('button', { name: 'Choose screen', exact: true }).click()
+  await page.getByRole('button', { name: 'Close desktop setup', exact: true }).click()
   await expect(page.getByLabel('Live shared screen')).toBeVisible()
   expect(await page.evaluate(() => (window as any).__captureCalls)).toBe(1)
   await page.getByRole('link', { name: 'Settings', exact: true }).click()
+  expect(await page.evaluate(() => (window as any).__trackStops)).toBe(0)
+  await page.getByRole('link', { name: 'Workspace', exact: true }).click()
+  await page.getByRole('button', { name: 'Stop sharing', exact: true }).click()
   expect(await page.evaluate(() => (window as any).__trackStops)).toBeGreaterThan(0)
 })
 test('mobile routes fit the viewport and load without script errors', async ({ page }) => {

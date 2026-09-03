@@ -34,14 +34,19 @@ impl Control {
     }
     pub fn check(&self, epoch: u64) -> Result<(), String> {
         if self.stopped.load(Ordering::SeqCst) || self.epoch.load(Ordering::SeqCst) != epoch {
-            Err("Emergency stop is active. Re-enable in the bridge console and pair again.".into())
+            Err(
+                "Emergency stop is active. Click New pairing code in Lens Bridge and pair again."
+                    .into(),
+            )
         } else {
             Ok(())
         }
     }
 }
 pub struct Session {
+    pub id: String,
     pub code: String,
+    pub code_expires: Instant,
     pub token: Option<String>,
     pub expires: Instant,
     pub attempts: u32,
@@ -51,7 +56,9 @@ pub struct Session {
 impl Session {
     pub fn new() -> Self {
         Self {
+            id: random_secret(16),
             code: random_secret(16),
+            code_expires: Instant::now() + Duration::from_secs(300),
             token: None,
             expires: Instant::now(),
             attempts: 0,
@@ -67,6 +74,10 @@ impl Session {
         self.attempts += 1;
         if self.attempts > 5 {
             return Err("Pairing rate limit. Wait 30 seconds.".into());
+        }
+        if self.code_expires <= Instant::now() {
+            self.code.clear();
+            return Err("Pairing code expired. Click New pairing code in Lens Bridge.".into());
         }
         if self.code.is_empty() || !equal_secret(&self.code, code) {
             return Err("Invalid or consumed pairing code.".into());
@@ -109,5 +120,13 @@ mod tests {
         c.stopped.store(false, Ordering::SeqCst);
         assert!(c.check(0).is_err());
         assert!(c.check(1).is_ok());
+    }
+    #[test]
+    fn expired_pairing_code_cannot_authorize() {
+        let mut s = Session::new();
+        let code = s.code.clone();
+        s.code_expires = Instant::now();
+        assert!(s.pair(&code).unwrap_err().contains("expired"));
+        assert!(s.token.is_none());
     }
 }

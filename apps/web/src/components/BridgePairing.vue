@@ -1,79 +1,61 @@
 <script setup lang="ts">
-import { ref } from 'vue'
 import { useLens } from '../app/context'
-const lens = useLens(),
-  code = ref('')
-async function pair() {
-  try {
-    await lens.pairBridge(code.value)
-    code.value = ''
-  } catch (e) {
-    lens.session.error = String(e)
-    code.value = ''
-  }
-}
-function calibrate() {
-  const g = lens.screen.geometry,
-    b = lens.bridgeState.capabilities?.desktopBounds,
-    m = g.desktopBounds
-  if (
-    !b ||
-    ![m.x, m.y, m.width, m.height].every(Number.isFinite) ||
-    m.width < 2 ||
-    m.height < 2 ||
-    m.x < b.x ||
-    m.y < b.y ||
-    m.x + m.width > b.x + b.width ||
-    m.y + m.height > b.y + b.height
-  ) {
-    lens.session.error = 'Capture bounds must fit inside the desktop reported by the bridge.'
-    return
-  }
-  g.calibrated = true
-}
+const lens = useLens()
 </script>
 <template>
-  <section class="connection-panel">
-    <h3>Connect your desktop</h3>
-    <p>Run the local bridge, then enter its pairing code. Ctrl+Alt+F10 stops input on Windows.</p>
-    <form v-if="lens.bridgeState.status !== 'connected'" @submit.prevent="pair">
-      <label for="pair-code">Pairing code</label>
-      <div class="input-row">
-        <input
-          id="pair-code"
-          v-model="code"
-          type="password"
-          autocomplete="off"
-          maxlength="64"
-          required
-          placeholder="Code from bridge console"
-        /><button
-          class="button primary"
-          :disabled="!lens.screen.sharing || lens.bridgeState.status === 'connecting'"
+  <section class="connection-panel connection-summary">
+    <div>
+      <h3>
+        {{ lens.bridgeState.status === 'connected' ? 'Desktop paired' : 'Desktop setup needed' }}
+      </h3>
+      <p v-if="lens.bridgeState.status === 'connected'">
+        {{
+          lens.screen.geometry.calibrated
+            ? 'Monitor confirmed. Ready for the next action.'
+            : 'Choose the monitor you shared to finish setup.'
+        }}
+        <span v-if="lens.bridgeState.expiresAt"
+          >Paired until
+          {{
+            new Date(lens.bridgeState.expiresAt).toLocaleTimeString([], {
+              hour: 'numeric',
+              minute: '2-digit',
+            })
+          }}.</span
         >
-          Pair bridge
-        </button>
-      </div>
-    </form>
-    <div v-else>
-      <p>
-        Map the captured screen or window to physical desktop pixels. For a single shared monitor,
-        enter that monitor's bounds. For a window, enter its captured content bounds. Recalibrate
-        after moving or resizing it.
       </p>
-      <div class="geometry-grid">
-        <label v-for="key in ['x', 'y', 'width', 'height'] as const" :key="key"
-          >{{ key
-          }}<input
-            type="number"
-            v-model.number="lens.screen.geometry.desktopBounds[key]"
-            :disabled="lens.runtimeState.busy"
-            @input="lens.screen.geometry.calibrated = false"
-        /></label>
-      </div>
-      <button class="button light" :disabled="lens.runtimeState.busy" @click="calibrate">
-        {{ lens.screen.geometry.calibrated ? 'Mapping confirmed' : 'Confirm capture mapping' }}
-      </button>
+      <p v-else>Share a monitor, start the companion, and enter its pairing code.</p>
+      <p v-if="lens.bridgeState.status === 'connected'">
+        {{ lens.bridgeState.capabilities?.device }} · Bridge
+        {{ lens.bridgeState.capabilities?.bridgeVersion }} · Protocol
+        {{ lens.bridgeState.capabilities?.protocolVersion }} <br />{{
+          lens.bridgeState.capabilities?.commands.join(', ')
+        }}
+        <br />Latency {{ lens.bridgeState.latencyMs }} ms. Last checked
+        {{ new Date(lens.bridgeState.testedAt).toLocaleTimeString() }}.
+      </p>
     </div>
+    <button class="button light" :disabled="lens.runtimeState.busy" @click="lens.requestSetup()">
+      {{ lens.bridgeState.status === 'connected' ? 'Connection settings' : 'Set up desktop' }}
+    </button>
+    <template v-if="lens.bridgeState.status === 'connected'">
+      <button
+        class="button light"
+        :disabled="lens.runtimeState.busy"
+        @click="lens.checkConnection()"
+      >
+        Test connection
+      </button>
+      <button class="button light" @click="lens.stop()">Disconnect</button>
+    </template>
+    <button
+      v-else
+      class="button light"
+      @click="
+        lens.requestSetup('Click New pairing code in Lens Bridge, then enter the fresh code.')
+      "
+    >
+      Reconnect
+    </button>
   </section>
 </template>

@@ -60,6 +60,12 @@ export type Key =
   | 'CTRL+V'
   | 'CTRL+S'
   | 'ALT+F4'
+  | 'CMD+A'
+  | 'CMD+C'
+  | 'CMD+V'
+  | 'CMD+S'
+  | 'CMD+W'
+  | 'CMD+SPACE'
   | 'LEFT'
   | 'RIGHT'
   | 'UP'
@@ -79,11 +85,20 @@ export interface DesktopResult {
   error?: string
 }
 export interface BridgeCapabilities {
-  platform: 'mock' | 'windows'
+  protocolVersion?: 1
+  bridgeVersion?: string
+  sessionId?: string
+  timestamp?: number
+  device?: string
+  displayRevision?: string
+  keys?: Key[]
+  platform: 'mock' | 'windows' | 'macos' | 'linux'
+  coordinateSpace?: 'physical-pixels' | 'logical-points'
   desktopBounds: Bounds
   displayScale: number
   commands: DesktopCommand['type'][]
   emergencyStop: boolean
+  displays?: { id: string; name: string; bounds: Bounds; primary: boolean }[]
 }
 export interface DesktopBridge {
   connect(): Promise<void>

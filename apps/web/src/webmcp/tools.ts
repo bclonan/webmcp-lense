@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { cartridgeSchema, keySchema, pointSchema } from '@lens/schemas'
+import { cartridgeSchema, keySchema, pointSchema, sequenceSchema } from '@lens/schemas'
 import type { ActionRequest } from '@lens/protocol'
 import type { LensService } from '../app/LensService'
 import { pause } from '../runtime/async'
@@ -42,6 +42,13 @@ const status = z
     goal: z.object({ id: z.string(), text: z.string() }).strict().nullable(),
     authorized: z.boolean(),
     approvalPending: z.boolean(),
+    busy: z.boolean(),
+    step: z.number(),
+    totalSteps: z.number(),
+    failure: z.string(),
+    bridge: z.string(),
+    sharing: z.boolean(),
+    mappingConfirmed: z.boolean(),
   })
   .strict()
 export function createTools(lens: LensService): ToolRegistry {
@@ -54,6 +61,32 @@ export function createTools(lens: LensService): ToolRegistry {
     }
   }
   const tools: ToolDefinition[] = [
+    {
+      name: 'desktop_run_sequence',
+      description:
+        'Run 1 to 20 explicit steps in order. Each step gets a fresh observation, policy check, approval when required, and verification. A failed or denied step stops the sequence without retry. Never run another action while goal_status.busy is true.',
+      schema: sequenceSchema,
+      output: accepted,
+      example: {
+        name: 'Demo Notepad sequence',
+        steps: [
+          { type: 'press', key: 'WIN' },
+          { type: 'type', text: 'Notepad' },
+          { type: 'press', key: 'ENTER' },
+          { type: 'click', targetId: 'visual:editor' },
+          { type: 'type', text: 'Hello from Lens.' },
+        ],
+      },
+      handler: (value, signal) => {
+        const run = lens.runSequence(value, signal)
+        return {
+          goalId: run.goal.id,
+          status: 'accepted',
+          message:
+            'Steps run sequentially. Check goal_status for progress and approve each requested action in Lens.',
+        }
+      },
+    },
     {
       name: 'screen_get_context',
       description:
@@ -211,11 +244,35 @@ export function createTools(lens: LensService): ToolRegistry {
         goal: lens.runtimeState.goal,
         authorized: lens.session.authorized,
         approvalPending: !!lens.approvals.pending,
+        busy: lens.runtimeState.busy,
+        step: lens.runtimeState.step,
+        totalSteps: lens.runtimeState.total,
+        failure: lens.runtimeState.failure,
+        bridge: lens.bridgeState.status,
+        sharing: lens.screen.sharing,
+        mappingConfirmed: lens.screen.geometry.calibrated,
       }),
     },
     {
+      name: 'goal_rerun',
+      description:
+        'Explicitly rerun the previous goal or sequence from its first step. May duplicate effects. Uses fresh observations and approvals; never resumes automatically after failure.',
+      schema: empty,
+      output: accepted,
+      example: {},
+      handler: (_, signal) => {
+        const run = lens.rerunLast(signal)
+        return {
+          goalId: run.goal.id,
+          status: 'accepted',
+          message: 'Rerunning from the first step with fresh observations and approval checks.',
+        }
+      },
+    },
+    {
       name: 'goal_cancel',
-      description: 'Cancel pending goal work. Live mode also disables desktop actuation.',
+      description:
+        'Cancel the remaining sequence. Pairing stays active unless a native command is currently executing, which requires an emergency stop.',
       schema: empty,
       output: z.object({ cancelled: z.boolean() }).strict(),
       example: {},
@@ -287,6 +344,34 @@ export function createTools(lens: LensService): ToolRegistry {
       output: cartridgeSchema,
       example: { name: 'My Paint workflow' },
       handler: ({ name }) => lens.stopRecording(name),
+    },
+    {
+      name: 'browser_get_capabilities',
+      description:
+        "Report this browser's supported screen-sharing and clipboard APIs without requesting permission or reading clipboard contents. Other browser tabs require an extension and are not exposed by Lens.",
+      schema: empty,
+      example: {},
+      readOnly: true,
+      output: z
+        .object({
+          screenSharing: z.boolean(),
+          clipboardRead: z.boolean(),
+          clipboardWrite: z.boolean(),
+          otherBrowserTabs: z.literal(false),
+          desktopInput: z.string(),
+          permissions: z.string(),
+        })
+        .strict(),
+      handler: () => lens.browser.describe(),
+    },
+    {
+      name: 'browser_clipboard_propose_write',
+      description:
+        'Propose text to copy to the system clipboard. The visible Copy approved text button performs the write with user activation. This tool never reads or changes the clipboard itself.',
+      schema: z.object({ text }).strict(),
+      example: { text: 'Hello from Lens.' },
+      output: z.object({ proposalId: z.string(), status: z.literal('awaiting_user') }).strict(),
+      handler: ({ text }) => lens.browser.proposeCopy(text),
     },
     {
       name: 'capability_export',

@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { Play, Check, X, Braces } from 'lucide-vue-next'
 import { useLens } from '../app/context'
 const lens = useLens(),
-  selected = ref(lens.tools.definitions[0].name),
+  selected = ref('screen_get_context'),
   input = ref('{}'),
   error = ref('')
 const tool = computed(() => lens.tools.definitions.find((t) => t.name === selected.value)!)

@@ -20,6 +20,12 @@ export const keySchema = z.enum([
   'CTRL+V',
   'CTRL+S',
   'ALT+F4',
+  'CMD+A',
+  'CMD+C',
+  'CMD+V',
+  'CMD+S',
+  'CMD+W',
+  'CMD+SPACE',
   'LEFT',
   'RIGHT',
   'UP',
@@ -68,7 +74,18 @@ export const boundsSchema = z
   .strict()
 export const capabilitiesSchema = z
   .object({
-    platform: z.enum(['mock', 'windows']),
+    protocolVersion: z.literal(1).optional(),
+    bridgeVersion: z.string().max(40).optional(),
+    sessionId: z
+      .string()
+      .regex(/^[a-f0-9]{32}$/)
+      .optional(),
+    timestamp: z.number().int().nonnegative().optional(),
+    device: z.string().max(200).optional(),
+    displayRevision: z.string().max(8000).optional(),
+    keys: z.array(keySchema).optional(),
+    platform: z.enum(['mock', 'windows', 'macos', 'linux']),
+    coordinateSpace: z.enum(['physical-pixels', 'logical-points']).optional(),
     desktopBounds: boundsSchema,
     displayScale: z.number().positive(),
     commands: z.array(
@@ -82,6 +99,56 @@ export const capabilitiesSchema = z
       ]),
     ),
     emergencyStop: z.boolean(),
+    displays: z
+      .array(
+        z
+          .object({ id: z.string(), name: z.string(), bounds: boundsSchema, primary: z.boolean() })
+          .strict(),
+      )
+      .optional(),
+  })
+  .strict()
+export const pairedResponseSchema = z
+  .object({
+    protocolVersion: z.literal(1),
+    bridgeVersion: z.string().max(40),
+    sessionId: z.string().regex(/^[a-f0-9]{32}$/),
+    timestamp: z.number().int().nonnegative(),
+    token: z.string().regex(/^[a-f0-9]{64}$/),
+    expiresIn: z.number().int().positive().max(1800),
+  })
+  .strict()
+export const nativeCapabilitiesSchema = capabilitiesSchema.extend({
+  protocolVersion: z.literal(1),
+  bridgeVersion: z.string().max(40),
+  sessionId: z.string().regex(/^[a-f0-9]{32}$/),
+  timestamp: z.number().int().nonnegative(),
+  device: z.string().max(200),
+  displayRevision: z.string().max(8000),
+  keys: z.array(keySchema),
+})
+export const bridgeRequestSchema = z
+  .object({
+    protocolVersion: z.literal(1),
+    sessionId: z.string().regex(/^[a-f0-9]{32}$/),
+    timestamp: z.number().int().nonnegative(),
+    displayRevision: z.string().max(8000),
+    command: commandSchema,
+  })
+  .strict()
+export const bridgeReceiptSchema = z
+  .object({
+    protocolVersion: z.literal(1),
+    bridgeVersion: z.string().max(40),
+    sessionId: z.string().regex(/^[a-f0-9]{32}$/),
+    commandId: id,
+    timestamp: z.number().int().nonnegative(),
+    status: z.enum(['completed', 'failed']),
+    result: resultSchema,
+    error: z
+      .object({ code: z.string().max(80), message: z.string().max(1000) })
+      .strict()
+      .optional(),
   })
   .strict()
 const stepBase = { approval: z.boolean().optional() }
@@ -137,3 +204,19 @@ export const cartridgeSchema = z
       .strict(),
   })
   .strict()
+export const sequenceSchema = z
+  .object({
+    name: z.string().min(1).max(100),
+    steps: z.array(cartridgeStepSchema).min(1).max(20),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    value.steps.forEach((step, index) => {
+      if (step.type === 'click' && !!step.targetId === !!step.point)
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['steps', index],
+          message: 'A click needs exactly one targetId or point.',
+        })
+    })
+  })

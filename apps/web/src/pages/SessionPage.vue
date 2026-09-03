@@ -15,10 +15,11 @@ import EventTimeline from '../components/EventTimeline.vue'
 import LiveScreen from '../components/LiveScreen.vue'
 import BridgePairing from '../components/BridgePairing.vue'
 import WorkflowPanel from '../components/WorkflowPanel.vue'
+import ActionComposer from '../components/ActionComposer.vue'
+import ClipboardPanel from '../components/ClipboardPanel.vue'
+import WorkspaceTools from '../components/WorkspaceTools.vue'
 const lens = useLens(),
   goal = ref('Open Paint and draw a small house with a sun.')
-const manual = ref('desktop_press'),
-  payload = ref('{"key":"WIN"}')
 async function enable() {
   try {
     await lens.enableDemo()
@@ -33,27 +34,12 @@ function run() {
     lens.session.error = String(e)
   }
 }
-async function share() {
+function rerun() {
   try {
-    await lens.shareScreen()
+    lens.rerunLast()
   } catch (e) {
     lens.session.error = String(e)
   }
-}
-async function act() {
-  try {
-    const result = await lens.tools.invoke(manual.value, JSON.parse(payload.value))
-    if (!result.ok) lens.session.error = result.error.message
-  } catch (e) {
-    lens.session.error = String(e)
-  }
-}
-function example() {
-  payload.value = JSON.stringify(
-    lens.tools.definitions.find((t) => t.name === manual.value)?.example,
-    null,
-    2,
-  )
 }
 function dismissError() {
   lens.session.error = ''
@@ -67,8 +53,8 @@ function dismissError() {
       <h1>See. Act. Verify.</h1>
     </div>
     <div class="workspace-actions">
-      <button class="text-link" :disabled="lens.runtimeState.busy" @click="share">
-        <Monitor :size="14" /> Share Screen</button
+      <button class="text-link" :disabled="lens.runtimeState.busy" @click="lens.requestSetup()">
+        <Monitor :size="14" /> Desktop setup</button
       ><RouterLink to="/demo" class="text-link"
         >Choose a demo <ArrowUpRight :size="15"
       /></RouterLink>
@@ -98,7 +84,7 @@ function dismissError() {
     {{ lens.session.error || lens.bridgeState.error }}
     <button @click="dismissError">Dismiss</button>
   </div>
-  <div class="workspace-grid">
+  <div class="workspace-grid workspace-with-tools">
     <section class="screen-panel">
       <div class="panel-header">
         <h2><ScanLine :size="16" /> Shared view</h2>
@@ -151,30 +137,20 @@ function dismissError() {
           }}
         </p>
       </div>
-      <div v-else class="composer">
-        <p class="live-note">
-          Live vision is not configured. Review your shared screen, select a bounded action, and
-          approve it before execution.
-        </p>
-        <label for="manual-tool">Action</label
-        ><select id="manual-tool" v-model="manual" @change="example">
-          <option
-            v-for="tool in lens.tools.definitions.filter((t) => t.name.startsWith('desktop_'))"
-            :key="tool.name"
-          >
-            {{ tool.name }}
-          </option></select
-        ><label for="manual-input">Action input</label
-        ><textarea id="manual-input" v-model="payload" rows="4" spellcheck="false" /><button
-          class="button primary full"
-          :disabled="!lens.session.authorized || lens.runtimeState.busy"
-          @click="act"
+      <template v-else
+        ><ActionComposer /><button
+          class="text-link return-demo"
+          :disabled="lens.runtimeState.busy"
+          @click="enable"
         >
-          Propose action</button
-        ><button class="text-link" @click="enable">Return to demo desktop</button>
-      </div>
+          Return to demo desktop
+        </button></template
+      >
       <div class="runtime-card" aria-live="polite">
         <div class="eyebrow">RUNTIME / {{ lens.runtimeState.state.replaceAll('_', ' ') }}</div>
+        <p v-if="lens.runtimeState.total" class="sequence-progress">
+          Step {{ lens.runtimeState.step }} of {{ lens.runtimeState.total }}
+        </p>
         <h3>
           {{
             lens.runtimeState.proposed?.description ??
@@ -191,6 +167,25 @@ function dismissError() {
         <div v-if="lens.runtimeState.state === 'completed'" class="complete-label">
           <Check :size="15" /> Goal completed
         </div>
+        <p v-if="lens.runtimeState.failure" role="alert" class="inline-error">
+          {{ lens.runtimeState.failure }}
+          {{
+            lens.session.authorized
+              ? 'The sequence stopped. Pairing is still active. Check the screen before starting another run.'
+              : 'Reconnect from Desktop setup before trying again.'
+          }}
+        </p>
+        <details
+          v-if="!lens.runtimeState.busy && lens.runtimeState.lastRun?.mode === lens.session.mode"
+          class="rerun-control"
+        >
+          <summary>Run again</summary>
+          <p>
+            This starts the previous run from step 1. Text entry and other effects may repeat. Check
+            the current screen first.
+          </p>
+          <button class="button light" @click="rerun">Rerun from first step</button>
+        </details>
         <button v-if="lens.runtimeState.busy" class="text-link" @click="lens.cancelGoal()">
           <CircleStop :size="14" /> Cancel goal
         </button>
@@ -215,7 +210,11 @@ function dismissError() {
         </div>
       </div>
     </aside>
+    <aside class="workspace-inspector" aria-label="Tools and timeline">
+      <WorkspaceTools />
+      <EventTimeline :events="lens.session.events" />
+    </aside>
   </div>
-  <EventTimeline :events="lens.session.events" />
+  <ClipboardPanel />
   <WorkflowPanel />
 </template>

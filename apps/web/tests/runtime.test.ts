@@ -25,6 +25,13 @@ describe('Product evaluations', () => {
   for (const evaluation of evaluationCases(registry)) it(evaluation.name, evaluation.run)
 })
 describe('Execution boundaries', () => {
+  it('rejects Mac shortcuts on the Windows-style demo without changing it', async () => {
+    const r = demoRig()
+    await r.bridge.connect()
+    const receipt = await r.bridge.execute({ id: ulid(), type: 'keyboard.key', key: 'CMD+SPACE' })
+    expect(receipt.ok).toBe(false)
+    expect(r.desktop.revision).toBe(0)
+  })
   it('does not claim to complete goals outside the demo scenarios', async () => {
     const r = demoRig()
     await r.bridge.connect()

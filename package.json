@@ -5,12 +5,15 @@
   "scripts": {
     "dev": "pnpm dev:web",
     "dev:web": "pnpm --filter @lens/web dev",
-    "dev:bridge": "cargo run --manifest-path apps/bridge/Cargo.toml",
+    "dev:bridge": "cargo run --manifest-path apps/bridge/Cargo.toml -- --origin http://127.0.0.1:5176",
+    "build:bridge": "cargo build --release --locked --manifest-path apps/bridge/Cargo.toml",
+    "package:bridge": "node scripts/package-bridge.mjs",
+    "stage:bridge": "node scripts/stage-bridge-downloads.mjs",
     "build": "pnpm --filter @lens/web build",
     "typecheck": "pnpm --filter @lens/web typecheck",
     "test": "pnpm --filter @lens/web test",
     "test:e2e": "pnpm --filter @lens/web test:e2e",
-    "test:bridge": "cargo test --manifest-path apps/bridge/Cargo.toml --target-dir apps/bridge/target/verification",
+    "test:bridge": "cargo test --manifest-path apps/bridge/Cargo.toml",
     "export:schemas": "pnpm --filter @lens/web exec node --experimental-strip-types scripts/export-schemas.mjs"
   }
 }

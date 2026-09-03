@@ -1,0 +1,274 @@
+{
+  "$ref": "#/definitions/bridge-request",
+  "definitions": {
+    "bridge-request": {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "type": "number",
+          "const": 1
+        },
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{32}$"
+        },
+        "timestamp": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "displayRevision": {
+          "type": "string",
+          "maxLength": 8000
+        },
+        "command": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "type": {
+                  "type": "string",
+                  "const": "pointer.move"
+                },
+                "point": {
+                  "type": "object",
+                  "properties": {
+                    "x": {
+                      "type": "integer",
+                      "minimum": -100000,
+                      "maximum": 100000
+                    },
+                    "y": {
+                      "type": "integer",
+                      "minimum": -100000,
+                      "maximum": 100000
+                    }
+                  },
+                  "required": [
+                    "x",
+                    "y"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "id",
+                "type",
+                "point"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "type": {
+                  "type": "string",
+                  "const": "pointer.click"
+                },
+                "point": {
+                  "type": "object",
+                  "properties": {
+                    "x": {
+                      "type": "integer",
+                      "minimum": -100000,
+                      "maximum": 100000
+                    },
+                    "y": {
+                      "type": "integer",
+                      "minimum": -100000,
+                      "maximum": 100000
+                    }
+                  },
+                  "required": [
+                    "x",
+                    "y"
+                  ],
+                  "additionalProperties": false
+                },
+                "button": {
+                  "type": "string",
+                  "enum": [
+                    "left",
+                    "right"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "type",
+                "point",
+                "button"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "type": {
+                  "type": "string",
+                  "const": "pointer.drag"
+                },
+                "points": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "integer",
+                        "minimum": -100000,
+                        "maximum": 100000
+                      },
+                      "y": {
+                        "type": "integer",
+                        "minimum": -100000,
+                        "maximum": 100000
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "minItems": 2,
+                  "maxItems": 128
+                },
+                "durationMs": {
+                  "type": "integer",
+                  "minimum": 50,
+                  "maximum": 5000
+                }
+              },
+              "required": [
+                "id",
+                "type",
+                "points",
+                "durationMs"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "type": {
+                  "type": "string",
+                  "const": "keyboard.text"
+                },
+                "text": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2000
+                }
+              },
+              "required": [
+                "id",
+                "type",
+                "text"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "type": {
+                  "type": "string",
+                  "const": "keyboard.key"
+                },
+                "key": {
+                  "type": "string",
+                  "enum": [
+                    "WIN",
+                    "ENTER",
+                    "ESC",
+                    "TAB",
+                    "BACKSPACE",
+                    "DELETE",
+                    "CTRL+A",
+                    "CTRL+C",
+                    "CTRL+V",
+                    "CTRL+S",
+                    "ALT+F4",
+                    "CMD+A",
+                    "CMD+C",
+                    "CMD+V",
+                    "CMD+S",
+                    "CMD+W",
+                    "CMD+SPACE",
+                    "LEFT",
+                    "RIGHT",
+                    "UP",
+                    "DOWN"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "type",
+                "key"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "type": {
+                  "type": "string",
+                  "const": "scroll"
+                },
+                "delta": {
+                  "type": "integer",
+                  "minimum": -1200,
+                  "maximum": 1200
+                }
+              },
+              "required": [
+                "id",
+                "type",
+                "delta"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "sessionId",
+        "timestamp",
+        "displayRevision",
+        "command"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

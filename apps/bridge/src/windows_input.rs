@@ -1,9 +1,11 @@
 use crate::{
     input::InputBackend,
-    protocol::{Bounds, Button, Command, Key, Point},
+    protocol::{Bounds, Button, Command, Display, Key, Point},
 };
 use std::{mem::size_of, ptr::null_mut, thread, time::Duration};
 use windows_sys::Win32::{
+    Foundation::{LPARAM, RECT},
+    Graphics::Gdi::*,
     System::StationsAndDesktops::*,
     UI::{HiDpi::*, Input::KeyboardAndMouse::*, WindowsAndMessaging::*},
 };
@@ -88,8 +90,8 @@ impl WindowsInput {
         }
         Ok(())
     }
-    fn combo(key: Key) -> Vec<u16> {
-        match key {
+    fn combo(key: Key) -> Result<Vec<u16>, String> {
+        Ok(match key {
             Key::Win => vec![VK_LWIN],
             Key::Enter => vec![VK_RETURN],
             Key::Esc => vec![VK_ESCAPE],
@@ -105,10 +107,63 @@ impl WindowsInput {
             Key::Right => vec![VK_RIGHT],
             Key::Up => vec![VK_UP],
             Key::Down => vec![VK_DOWN],
-        }
+            Key::CommandSelectAll
+            | Key::CommandCopy
+            | Key::CommandPaste
+            | Key::CommandSave
+            | Key::CommandClose
+            | Key::Spotlight => {
+                return Err("CMD shortcuts require macOS. Use CTRL shortcuts on Windows.".into());
+            }
+        })
     }
 }
 impl InputBackend for WindowsInput {
+    fn displays(&self) -> Vec<Display> {
+        unsafe extern "system" fn collect(
+            monitor: HMONITOR,
+            _: HDC,
+            _: *mut RECT,
+            data: LPARAM,
+        ) -> i32 {
+            let displays = unsafe { &mut *(data as *mut Vec<Display>) };
+            let mut info: MONITORINFOEXW = unsafe { std::mem::zeroed() };
+            info.monitorInfo.cbSize = size_of::<MONITORINFOEXW>() as u32;
+            if unsafe { GetMonitorInfoW(monitor, &mut info.monitorInfo) } != 0 {
+                let r = info.monitorInfo.rcMonitor;
+                let name = String::from_utf16_lossy(
+                    &info.szDevice[..info
+                        .szDevice
+                        .iter()
+                        .position(|c| *c == 0)
+                        .unwrap_or(info.szDevice.len())],
+                );
+                displays.push(Display {
+                    id: name.clone(),
+                    name,
+                    bounds: Bounds {
+                        x: r.left,
+                        y: r.top,
+                        width: r.right - r.left,
+                        height: r.bottom - r.top,
+                    },
+                    primary: info.monitorInfo.dwFlags & 1 != 0,
+                });
+            }
+            1
+        }
+        let mut displays: Vec<Display> = Vec::new();
+        unsafe {
+            EnumDisplayMonitors(
+                null_mut(),
+                std::ptr::null(),
+                Some(collect),
+                &mut displays as *mut Vec<Display> as LPARAM,
+            );
+        }
+        displays.sort_by_key(|d| (d.bounds.x, d.bounds.y));
+        displays
+    }
     fn geometry(&self) -> Bounds {
         unsafe {
             Bounds {
@@ -177,7 +232,7 @@ impl InputBackend for WindowsInput {
                 Ok(())
             }
             Command::Key { key, .. } => {
-                let keys = Self::combo(*key);
+                let keys = Self::combo(*key)?;
                 let mut pressed = Vec::new();
                 let run = (|| {
                     for key in &keys {
@@ -199,24 +254,26 @@ impl InputBackend for WindowsInput {
         }
     }
 }
-pub fn hotkey_loop(stop: impl Fn() + Send + 'static, ready: std::sync::mpsc::Sender<bool>) {
-    thread::spawn(move || unsafe {
-        let registered = RegisterHotKey(
-            null_mut(),
-            1,
-            MOD_CONTROL | MOD_ALT | MOD_NOREPEAT,
-            VK_F10 as u32,
-        ) != 0;
-        let _ = ready.send(registered);
-        if !registered {
-            return;
+
+#[cfg(test)]
+mod display_tests {
+    use super::*;
+    #[test]
+    fn enumerates_physical_monitors_without_sending_input() {
+        let input = WindowsInput::new();
+        let bounds = input.geometry();
+        let displays = input.displays();
+        assert!(
+            !displays.is_empty(),
+            "An interactive Windows desktop should report a monitor"
+        );
+        assert!(displays.iter().any(|display| display.primary));
+        for display in displays {
+            assert!(!display.id.is_empty());
+            assert!(display.bounds.width > 0 && display.bounds.height > 0);
+            assert!(display.bounds.x >= bounds.x && display.bounds.y >= bounds.y);
+            assert!(display.bounds.x + display.bounds.width <= bounds.x + bounds.width);
+            assert!(display.bounds.y + display.bounds.height <= bounds.y + bounds.height);
         }
-        let mut message: MSG = std::mem::zeroed();
-        while GetMessageW(&mut message, null_mut(), 0, 0) > 0 {
-            if message.message == WM_HOTKEY {
-                stop();
-            }
-        }
-        UnregisterHotKey(null_mut(), 1);
-    });
+    }
 }
