@@ -6,5 +6,7 @@ export const useBridgeStore = defineStore('bridge', {
     capabilities: null as BridgeCapabilities | null,
     error: '',
     expiresAt: 0,
+    latencyMs: 0,
+    testedAt: 0,
   }),
 })

@@ -17,7 +17,9 @@ const steps = ref<CartridgeStep[]>([]),
   error = ref('')
 const keys = computed(() =>
   keySchema.options.filter(
-    (key) => !key.startsWith('CMD+') || lens.bridgeState.capabilities?.platform === 'macos',
+    (key) =>
+      lens.bridgeState.capabilities?.keys?.includes(key) ??
+      (!key.startsWith('CMD+') || lens.bridgeState.capabilities?.platform === 'macos'),
   ),
 )
 function draft(): CartridgeStep {

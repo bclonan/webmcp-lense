@@ -144,6 +144,8 @@ export class LensService {
     const bridge = this.bridge
     try {
       const capabilities = await bridge.capabilities()
+      this.bridgeState.latencyMs = bridge instanceof LocalDesktopBridge ? bridge.latencyMs : 0
+      this.bridgeState.testedAt = Date.now()
       if (bridge !== this.bridge || this.bridgeState.status !== 'connected' || this.runtime.busy)
         return
       if (
@@ -314,7 +316,8 @@ export class LensService {
         'STOP CONTROL. Pending work cleared and bridge actuation disabled.',
       )
       await this.bridge.emergencyStop().catch(() => {
-        this.bridgeState.error = 'Bridge did not acknowledge stop. Use Ctrl+Alt+F10, or type stop in the companion terminal.'
+        this.bridgeState.error =
+          'Bridge did not acknowledge stop. Use Ctrl+Alt+F10, or type stop in the companion terminal.'
       })
     } finally {
       this.stopping = false
@@ -366,6 +369,8 @@ export class LensService {
       this.screen.geometry.calibrated = false
       this.bridgeState.status = 'connected'
       this.bridgeState.expiresAt = bridge.expiresAt
+      this.bridgeState.latencyMs = bridge.latencyMs
+      this.bridgeState.testedAt = Date.now()
       this.session.authorized = true
       this.runtime = this.makeRuntime()
       this.event(

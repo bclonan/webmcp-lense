@@ -254,27 +254,6 @@ impl InputBackend for WindowsInput {
         }
     }
 }
-pub fn hotkey_loop(stop: impl Fn() + Send + 'static, ready: std::sync::mpsc::Sender<bool>) {
-    thread::spawn(move || unsafe {
-        let registered = RegisterHotKey(
-            null_mut(),
-            1,
-            MOD_CONTROL | MOD_ALT | MOD_NOREPEAT,
-            VK_F10 as u32,
-        ) != 0;
-        let _ = ready.send(registered);
-        if !registered {
-            return;
-        }
-        let mut message: MSG = std::mem::zeroed();
-        while GetMessageW(&mut message, null_mut(), 0, 0) > 0 {
-            if message.message == WM_HOTKEY {
-                stop();
-            }
-        }
-        UnregisterHotKey(null_mut(), 1);
-    });
-}
 
 #[cfg(test)]
 mod display_tests {

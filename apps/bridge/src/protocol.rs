@@ -1,4 +1,27 @@
 use serde::{Deserialize, Serialize};
+pub fn supported_keys(platform: &str) -> Vec<&'static str> {
+    let mut keys = vec![
+        "WIN",
+        "ENTER",
+        "ESC",
+        "TAB",
+        "BACKSPACE",
+        "DELETE",
+        "CTRL+A",
+        "CTRL+C",
+        "CTRL+V",
+        "CTRL+S",
+        "ALT+F4",
+        "LEFT",
+        "RIGHT",
+        "UP",
+        "DOWN",
+    ];
+    if platform == "macos" {
+        keys.extend(["CMD+A", "CMD+C", "CMD+V", "CMD+S", "CMD+W", "CMD+SPACE"]);
+    }
+    keys
+}
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Point {
@@ -137,6 +160,15 @@ impl Command {
                 && (p.x as i64) < bounds.x as i64 + bounds.width as i64
                 && (p.y as i64) < bounds.y as i64 + bounds.height as i64
         };
+        match self {
+            Self::Move { point, .. } | Self::Click { point, .. } if !point_valid(point) => {
+                return Err("Point outside desktop bounds".into());
+            }
+            Self::Drag { points, .. } if points.iter().any(|p| !point_valid(p)) => {
+                return Err("Point outside desktop bounds".into());
+            }
+            _ => {}
+        }
         let valid = match self {
             Self::Move { point, .. } | Self::Click { point, .. } => point_valid(point),
             Self::Drag {

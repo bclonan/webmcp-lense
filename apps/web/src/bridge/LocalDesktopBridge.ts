@@ -1,12 +1,30 @@
-import type { DesktopBridge, DesktopCommand, DesktopResult } from '@lens/protocol'
-import { capabilitiesSchema, commandSchema, resultSchema } from '@lens/schemas'
+import type {
+  DesktopBridge,
+  DesktopCommand,
+  DesktopResult,
+  BridgeCapabilities,
+} from '@lens/protocol'
+import {
+  nativeCapabilitiesSchema,
+  commandSchema,
+  pairedResponseSchema,
+  bridgeRequestSchema,
+  bridgeReceiptSchema,
+} from '@lens/schemas'
 export class LocalDesktopBridge implements DesktopBridge {
   private token = ''
+  private sessionId = ''
+  private manifest: BridgeCapabilities | null = null
   private generation = 0
   expiresAt = 0
+  latencyMs = 0
   private readonly url = 'http://127.0.0.1:47653'
   constructor(private pairingCode: string) {}
-  private async request(path: string, body: unknown = {}, token = this.token) {
+  private sessionBody() {
+    return { protocolVersion: 1, sessionId: this.sessionId, timestamp: Date.now() }
+  }
+  private async request(path: string, body: unknown = this.sessionBody(), token = this.token) {
+    const start = performance.now()
     const response = await fetch(this.url + path, {
       method: 'POST',
       mode: 'cors',
@@ -20,42 +38,80 @@ export class LocalDesktopBridge implements DesktopBridge {
       signal: AbortSignal.timeout(8000),
     })
     const value = await response.json()
-    if (!response.ok) throw new Error(value.error ?? `Bridge returned HTTP ${response.status}`)
+    this.latencyMs = Math.round(performance.now() - start)
+    if (!response.ok)
+      throw new Error(
+        typeof value.error === 'string'
+          ? value.error
+          : `${value.error?.code ?? 'connection_failed'}: ${value.error?.message ?? `Bridge returned HTTP ${response.status}`}`,
+      )
     return value
   }
   async connect() {
     const generation = ++this.generation
-    const response = await this.request('/pair', { code: this.pairingCode })
+    const raw = await this.request('/pair', { protocolVersion: 1, code: this.pairingCode })
     this.pairingCode = ''
-    if (typeof response.token !== 'string' || !/^[a-f0-9]{64}$/.test(response.token))
-      throw new Error('Invalid bridge pairing response.')
+    const parsed = pairedResponseSchema.safeParse(raw)
+    if (!parsed.success)
+      throw new Error(
+        'Companion protocol mismatch. Download the current Lens Bridge and pair again.',
+      )
+    const response = parsed.data
     if (generation !== this.generation) {
-      await this.request('/disconnect', {}, response.token)
+      await this.request(
+        '/disconnect',
+        { protocolVersion: 1, sessionId: response.sessionId, timestamp: Date.now() },
+        response.token,
+      )
       throw new Error('Pairing cancelled.')
     }
     this.token = response.token
-    this.expiresAt = Date.now() + (Number(response.expiresIn) || 1800) * 1000
+    this.sessionId = response.sessionId
+    this.expiresAt = Date.now() + response.expiresIn * 1000
   }
   async capabilities() {
-    return capabilitiesSchema.parse(await this.request('/capabilities'))
+    const capabilities = nativeCapabilitiesSchema.parse(await this.request('/capabilities'))
+    if (capabilities.sessionId !== this.sessionId)
+      throw new Error('Companion session changed. Reconnect.')
+    this.manifest = capabilities
+    return capabilities
   }
   async execute(command: DesktopCommand): Promise<DesktopResult> {
     commandSchema.parse(command)
-    if (!this.token) throw new Error('Bridge is not paired.')
-    const result = resultSchema.parse(await this.request('/execute', command))
-    if (result.id !== command.id) throw new Error('Bridge returned an unexpected command receipt.')
-    return result
+    if (!this.token || !this.manifest)
+      throw new Error('Bridge is not paired. Connect and test capabilities first.')
+    if (
+      !this.manifest.commands.includes(command.type) ||
+      (command.type === 'keyboard.key' && !this.manifest.keys?.includes(command.key))
+    )
+      throw new Error('This companion does not support the requested action.')
+    const message = bridgeRequestSchema.parse({
+      ...this.sessionBody(),
+      displayRevision: this.manifest.displayRevision,
+      command,
+    })
+    const receipt = bridgeReceiptSchema.parse(await this.request('/execute', message))
+    if (
+      receipt.sessionId !== this.sessionId ||
+      receipt.commandId !== command.id ||
+      receipt.result.id !== command.id ||
+      (receipt.status === 'completed') !== receipt.result.ok
+    )
+      throw new Error('Bridge returned an unexpected command receipt.')
+    return receipt.result
   }
   async disconnect() {
     ++this.generation
     const token = this.token
     this.token = ''
-    if (token) await this.request('/disconnect', {}, token)
+    this.manifest = null
+    if (token) await this.request('/disconnect', this.sessionBody(), token)
   }
   async emergencyStop() {
     ++this.generation
     const token = this.token
     this.token = ''
-    if (token) await this.request('/stop', {}, token)
+    this.manifest = null
+    if (token) await this.request('/stop', this.sessionBody(), token)
   }
 }

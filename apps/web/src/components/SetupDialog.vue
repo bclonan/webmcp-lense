@@ -1,19 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick } from 'vue'
 import { useLens } from '../app/context'
+import BridgeDownloads from './BridgeDownloads.vue'
 const lens = useLens(),
   dialog = ref<HTMLDialogElement>(),
   code = ref(''),
   error = ref(''),
   copying = ref('')
 const lensOrigin = window.location.origin
-const setupPlatform = ref(
-  /Mac/i.test(navigator.platform)
-    ? 'macos'
-    : /Linux/i.test(navigator.platform)
-      ? 'linux'
-      : 'windows',
-)
 const bridgeCommand =
   lensOrigin === 'http://127.0.0.1:5176'
     ? 'pnpm dev:bridge'
@@ -64,7 +58,7 @@ async function pair() {
     await lens.pairBridge(code.value.trim())
     code.value = ''
   } catch (e) {
-    error.value = `Could not pair. Keep the companion running. If the code was already used or control stopped, type enable in its terminal for a new code. ${String(e)}`
+    error.value = `Could not pair. Keep the companion running. If the code was already used or control stopped, click New pairing code in its window. ${String(e)}`
   }
 }
 async function copyCommand() {
@@ -118,6 +112,7 @@ function confirm() {
       </li>
     </ol>
     <p v-if="lens.session.setupReason" class="notice warning">{{ lens.session.setupReason }}</p>
+    <BridgeDownloads v-if="step <= 2" />
     <section v-if="step === 1" class="setup-body">
       <h3>Choose what Lens can see</h3>
       <p>
@@ -135,36 +130,7 @@ function confirm() {
     </section>
     <section v-else-if="step === 2" class="setup-body">
       <h3>Start the desktop companion</h3>
-      <label for="setup-platform">Your computer</label>
-      <select id="setup-platform" v-model="setupPlatform">
-        <option value="windows">Windows</option>
-        <option value="macos">Mac</option>
-        <option value="linux">Linux</option>
-      </select>
-      <p v-if="setupPlatform === 'windows'">
-        Install Rust with the MSVC toolchain and Visual Studio C++ Build Tools.
-      </p>
-      <p v-else-if="setupPlatform === 'macos'">
-        Install Rust and Xcode Command Line Tools. In System Settings, open Privacy &amp; Security,
-        then allow Accessibility for the terminal or VS Code running the companion. Allow Screen
-        Recording for the browser when sharing. Restart those apps if macOS requests it.
-      </p>
-      <p v-else>
-        Install Rust, a C linker and libxkbcommon development files. Use an X11 desktop session with
-        RandR and XTest. Wayland input is not supported yet. Choose an X11 session at login.
-      </p>
-      <ol class="setup-instructions">
-        <li>Open this Lens project in VS Code. Choose Terminal, then New Terminal.</li>
-        <li>
-          Run this command and leave the terminal open.
-          <div class="command-copy">
-            <code>{{ bridgeCommand }}</code
-            ><button class="button light" @click="copyCommand">Copy command</button>
-          </div>
-          <small role="status">{{ copying }}</small>
-        </li>
-        <li>Find the line that begins <code>Pairing code:</code>. Paste its code below.</li>
-      </ol>
+      <p>Open Lens Bridge and copy its pairing code. No terminal is needed.</p>
       <form @submit.prevent="pair">
         <label for="setup-code">Pairing code</label>
         <div class="input-row">
@@ -175,7 +141,7 @@ function confirm() {
             autocomplete="off"
             maxlength="64"
             required
-            placeholder="Paste the code from the companion terminal"
+            placeholder="Paste the code from the Lens Bridge window"
             :disabled="lens.bridgeState.status === 'connecting'"
           /><button
             class="button primary"
@@ -186,21 +152,25 @@ function confirm() {
         </div>
       </form>
       <details>
-        <summary>Need a fresh code or help starting?</summary>
+        <summary>Connection help</summary>
         <p>
-          If the companion is still running, type <code>enable</code> in that terminal and press
-          Enter. Use the new code once. If it has closed, run the start command again.
+          Click New pairing code in Lens Bridge if the old code expired or control stopped. Both
+          windows must show the same website address, {{ lensOrigin }}.
         </p>
         <p>
-          The companion must allow this page's address, <code>{{ lensOrigin }}</code
-          >. The command above sets that address. The companion stays on your computer. The project
-          README has the Node, pnpm and Rust prerequisites.
+          If your browser asks to connect to the local network, allow the connection to the
+          companion. A browser that blocks loopback connections cannot use desktop input. Browser
+          demos remain available.
         </p>
-        <p v-if="lensOrigin.startsWith('https:')">
-          If the browser asks to connect to your local network, allow it to reach the companion. If
-          your browser blocks this connection, run Lens locally with pnpm dev:web and open
-          http://127.0.0.1:5176.
-        </p>
+      </details>
+      <details>
+        <summary>Contributor setup</summary>
+        <p>From this repository, with Rust and the platform build dependencies installed:</p>
+        <div class="command-copy">
+          <code>{{ bridgeCommand }}</code
+          ><button class="button light" @click="copyCommand">Copy command</button>
+        </div>
+        <small role="status">{{ copying }}</small>
       </details>
     </section>
     <section v-else-if="step === 3" class="setup-body">

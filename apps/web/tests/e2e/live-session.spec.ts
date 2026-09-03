@@ -54,10 +54,24 @@ async function fixture(page: Page, platform: 'windows' | 'macos' | 'linux' = 'wi
     let value: any = { ok: true }
     if (path === '/pair') {
       state.pairs++
-      value = { token: 'a'.repeat(64), expiresIn: 1800 }
+      value = {
+        protocolVersion: 1,
+        bridgeVersion: '0.2.0',
+        sessionId: 'b'.repeat(32),
+        timestamp: Date.now(),
+        token: 'a'.repeat(64),
+        expiresIn: 1800,
+      }
     }
     if (path === '/capabilities')
       value = {
+        protocolVersion: 1,
+        bridgeVersion: '0.2.0',
+        sessionId: 'b'.repeat(32),
+        timestamp: Date.now(),
+        device: platform,
+        displayRevision: 'layout',
+        keys: ['CTRL+C', 'CMD+C', 'CMD+A', 'CMD+V', 'CMD+S', 'CMD+W', 'CMD+SPACE', 'ENTER'],
         platform,
         coordinateSpace: platform === 'macos' ? 'logical-points' : 'physical-pixels',
         desktopBounds: { x: -width, y: 0, width: width * 3, height },
@@ -72,10 +86,18 @@ async function fixture(page: Page, platform: 'windows' | 'macos' | 'linux' = 'wi
         })),
       }
     if (path === '/execute') {
-      const command = route.request().postDataJSON()
+      const command = route.request().postDataJSON().command
       state.executed.push(command)
       if (state.change) await page.evaluate(() => (window as any).__desktopChange())
-      value = { id: command.id, ok: true, executedAt: Date.now() }
+      value = {
+        protocolVersion: 1,
+        bridgeVersion: '0.2.0',
+        sessionId: 'b'.repeat(32),
+        timestamp: Date.now(),
+        commandId: command.id,
+        status: 'completed',
+        result: { id: command.id, ok: true, executedAt: Date.now() },
+      }
     }
     if (path === '/stop' || path === '/disconnect') state.stops++
     await route.fulfill({ json: value })
@@ -89,9 +111,7 @@ async function setup(page: Page) {
   await expect(modal).toContainText('Choose what Lens can see')
   expect(await page.evaluate(() => (window as any).__captureCalls)).toBe(0)
   await modal.getByRole('button', { name: 'Choose screen', exact: true }).click()
-  await expect(modal).toContainText(
-    `cargo run --manifest-path apps/bridge/Cargo.toml -- --origin ${new URL(page.url()).origin}`,
-  )
+  await expect(modal).toContainText('Open Lens Bridge and copy its pairing code.')
   await modal.getByLabel('Pairing code', { exact: true }).fill('fixture-code')
   await modal.getByRole('button', { name: 'Pair bridge', exact: true }).click()
   await modal.getByLabel('Shared monitor', { exact: true }).selectOption('display-1')

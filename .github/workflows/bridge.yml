@@ -1,9 +1,11 @@
 name: Desktop bridge
 on:
   push:
-    paths: ['apps/bridge/**', '.github/workflows/bridge.yml']
+    branches: ['**']
+    tags: ['bridge-v*']
+    paths: ['apps/bridge/**', 'scripts/*bridge*', '.github/workflows/bridge.yml']
   pull_request:
-    paths: ['apps/bridge/**', '.github/workflows/bridge.yml']
+    paths: ['apps/bridge/**', 'scripts/*bridge*', '.github/workflows/bridge.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -12,22 +14,57 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
+        include:
+          - os: windows-latest
+            package: windows-x64
+          - os: macos-latest
+            package: macos-arm64
+          - os: macos-15-intel
+            package: macos-x64
+          - os: ubuntu-24.04
+            package: linux-x64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - name: Install Linux keyboard library
+        with:
+          components: rustfmt, clippy
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Linux desktop libraries
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libxkbcommon-dev
-      - name: Test without an interactive desktop
+        run: sudo apt-get update && sudo apt-get install -y libxkbcommon-dev libwayland-dev libx11-dev libxi-dev libxcursor-dev libxrandr-dev libgl1-mesa-dev
+      - name: Check formatting
+        run: cargo fmt --manifest-path apps/bridge/Cargo.toml -- --check
+      - name: Lint bridge
+        run: cargo clippy --locked --manifest-path apps/bridge/Cargo.toml --all-targets -- -D warnings
+      - name: Test without native input
         run: cargo test --locked --manifest-path apps/bridge/Cargo.toml -- --skip enumerates_physical_monitors_without_sending_input
-      - name: Build native companion
+      - name: Build release companion
         run: cargo build --locked --release --manifest-path apps/bridge/Cargo.toml
+      - name: Package native application and checksum
+        run: node scripts/package-bridge.mjs
       - uses: actions/upload-artifact@v4
         with:
-          name: lens-bridge-${{ runner.os }}-${{ runner.arch }}
-          path: |
-            apps/bridge/target/release/lens-bridge
-            apps/bridge/target/release/lens-bridge.exe
+          name: lens-bridge-${{ matrix.package }}
+          path: release/packages/*
           if-no-files-found: error
+          retention-days: 30
+  release:
+    if: startsWith(github.ref, 'refs/tags/bridge-v')
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: lens-bridge-*
+          path: release/packages
+          merge-multiple: true
+      - name: Publish versioned packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" release/packages/* --verify-tag --title "Lens Bridge ${GITHUB_REF_NAME#bridge-v}" --notes-file docs/BRIDGE_RELEASE_NOTES.md

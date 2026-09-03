@@ -29,21 +29,44 @@ async function paired() {
     vi.fn(async (url: string, init: RequestInit) => {
       const path = new URL(url).pathname
       paths.push(path)
-      if (path === '/pair') return Response.json({ token: 'a'.repeat(64), expiresIn: 1800 })
+      if (path === '/pair')
+        return Response.json({
+          protocolVersion: 1,
+          bridgeVersion: '0.2.0',
+          sessionId: 'b'.repeat(32),
+          timestamp: Date.now(),
+          token: 'a'.repeat(64),
+          expiresIn: 1800,
+        })
       if (path === '/capabilities')
         return Response.json({
+          protocolVersion: 1,
+          bridgeVersion: '0.2.0',
+          sessionId: 'b'.repeat(32),
+          timestamp: Date.now(),
+          device: 'windows x64',
+          displayRevision: 'layout',
+          keys: ['CTRL+C', 'ENTER'],
           platform: 'windows',
           desktopBounds: bounds,
           displays: [{ id: 'one', name: 'Main display', bounds, primary: true }],
           displayScale: 1,
-          commands: ['pointer.click'],
+          commands: ['pointer.click', 'keyboard.key', 'keyboard.text'],
           emergencyStop: true,
         })
       if (path === '/execute') {
-        const command = JSON.parse(init.body as string)
+        const command = JSON.parse(init.body as string).command
         commands.push(command)
         lens.screen.changeRevision++
-        return Response.json({ id: command.id, ok: true, executedAt: Date.now() })
+        return Response.json({
+          protocolVersion: 1,
+          bridgeVersion: '0.2.0',
+          sessionId: 'b'.repeat(32),
+          timestamp: Date.now(),
+          commandId: command.id,
+          status: 'completed',
+          result: { id: command.id, ok: true, executedAt: Date.now() },
+        })
       }
       return Response.json({ ok: true })
     }),

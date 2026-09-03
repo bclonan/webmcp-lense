@@ -1,6 +1,6 @@
 [package]
 name = "lens-bridge"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 description = "Loopback-only authorized desktop input companion for Lens"
 
@@ -9,6 +9,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tiny_http = "0.12"
 getrandom = "0.3"
+eframe = { version = "=0.33.3", default-features = false, features = ["default_fonts", "glow", "x11", "wayland"] }
+url = "2"
 
 [target.'cfg(any(target_os = "macos", target_os = "linux"))'.dependencies]
 enigo = { version = "0.6.1", default-features = false, features = ["x11rb"] }

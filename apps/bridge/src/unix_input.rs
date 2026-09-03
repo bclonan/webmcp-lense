@@ -27,7 +27,7 @@ impl UnixInput {
         let driver = Enigo::new(&Settings {
             open_prompt_to_get_permissions: false,
             ..Settings::default()
-        }).map_err(|e| format!("{e}. On macOS, allow the terminal running Lens under System Settings > Privacy & Security > Accessibility, then restart the bridge. On Linux, use an X11 session with libxkbcommon installed."))?;
+        }).map_err(|e| format!("{e}. On macOS, allow Lens Bridge under System Settings > Privacy & Security > Accessibility, then restart the bridge. On Linux, use an X11 session with libxkbcommon installed."))?;
         Ok(Self {
             driver: Mutex::new(driver),
         })

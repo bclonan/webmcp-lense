@@ -85,6 +85,13 @@ export interface DesktopResult {
   error?: string
 }
 export interface BridgeCapabilities {
+  protocolVersion?: 1
+  bridgeVersion?: string
+  sessionId?: string
+  timestamp?: number
+  device?: string
+  displayRevision?: string
+  keys?: Key[]
   platform: 'mock' | 'windows' | 'macos' | 'linux'
   coordinateSpace?: 'physical-pixels' | 'logical-points'
   desktopBounds: Bounds
