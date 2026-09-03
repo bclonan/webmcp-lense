@@ -1,3 +1,57 @@
+# Companion release verification, 2026-09-02
+
+This section is the current 0.2.0 status. Earlier entries below are historical evidence.
+
+The existing Rust bridge was reused. It now has a visible eframe application window and wire protocol 1. The web setup, optional download selectors, protocol adapter and documentation are deployed to https://lens-webmcp.netlify.app. Production deployment ID: `6a98eb42098bcec14f8e2e8f`.
+
+## Release blockers
+
+- GitHub Actions run https://github.com/bclonan/webmcp-lense/actions/runs/33711405243 did not start any jobs. GitHub's visible annotation says recent account payments failed or the spending limit needs to be increased. No CI package exists. No release tag or GitHub Release was published.
+- Local `cargo build --locked --release --manifest-path apps/bridge/Cargo.toml` compiles/links but Cargo cannot link or copy `target/release/deps/lens_bridge.exe` to `target/release/lens-bridge.exe`: Access is denied, OS error 5. The same command fails outside the sandbox. No permissions or endpoint protection were changed.
+- The release manifest intentionally has an empty artifacts array. The hosted manifest returned HTTP 200 with version 0.2.0, protocolVersion 1 and no downloads. Setup has no broken or fabricated download links.
+
+| Platform | Artifact target | Native release build | Downloaded launch | Native pairing/input | Download verified |
+| --- | --- | --- | --- | --- | --- |
+| Windows x64 | EXE | Local final copy blocked; CI did not start | No | No for 0.2.0 | No |
+| macOS arm64 | DMG containing app | CI did not start | No | No | No |
+| macOS x64 | DMG containing app | CI did not start | No | No | No |
+| Linux x64 | Ubuntu 24.04+ DEB | CI did not start | No | No | No |
+
+## Checks completed
+
+| Check | Exact command | Result |
+| --- | --- | --- |
+| Bridge format | `cargo fmt --manifest-path apps/bridge/Cargo.toml -- --check` | Passed |
+| Bridge lint | `cargo clippy --locked --manifest-path apps/bridge/Cargo.toml --all-targets -- -D warnings` | Passed |
+| Windows type check | `cargo check --manifest-path apps/bridge/Cargo.toml --locked` | Passed |
+| macOS type/lint check | `cargo clippy --locked --manifest-path apps/bridge/Cargo.toml --target aarch64-apple-darwin --all-targets -- -D warnings` | Passed; cross-check only |
+| Linux type/lint check | `cargo clippy --locked --manifest-path apps/bridge/Cargo.toml --target x86_64-unknown-linux-gnu --all-targets -- -D warnings` | Passed; cross-check only |
+| Bridge tests | `cargo test --locked --manifest-path apps/bridge/Cargo.toml` | 10 passed |
+| Windows development build | `cargo build --locked --manifest-path apps/bridge/Cargo.toml` | Passed |
+| Windows release build | `cargo build --locked --release --manifest-path apps/bridge/Cargo.toml` | Failed at final output copy, OS error 5 |
+| macOS/Linux release builds | Same release command on their native CI runners | Not run; account billing blocked startup |
+| Web tests | `pnpm test` | 53 passed |
+| Browser integration | `pnpm test:e2e` | All 18 passed on final full run |
+| Web production build | `pnpm build` | Passed, including Vue type check |
+| JSON schema export | `node --experimental-strip-types apps/web/scripts/export-schemas.mjs` | Passed |
+
+The first browser run failed the Linux key-choice fixture and one recording workflow after source edits triggered development reload. The fixture now advertises platform-appropriate keys. The final uninterrupted full run passed all 18 checks.
+
+The Windows development executable was launched for review. Process inspection outside the sandbox confirmed a responsive window titled Lens Bridge and an IPv4 listener on 127.0.0.1:47653. This is not a packaged-download launch test. Actual native pairing, approved mouse input, clean GUI shutdown and reconnect still need an interactive smoke test.
+
+Rust HTTP tests exercise the real server with a fake input backend: exact origins, unauthorized clients, one-time and expired codes, capability exchange, coordinate move receipt, malformed and unsupported commands, duplicates, protocol mismatch, session mismatch, stale timestamps, changed display revision, disconnect, renew and stop. They send no OS input. Browser fixtures cover sequential approvals, rerun, monitor mapping, Mac/Linux capabilities, screen sharing and existing browser-only workflows.
+
+## Hosted verification
+
+- https://lens-webmcp.netlify.app/setup opens the existing setup modal at `/session?setup=desktop`.
+- Windows, macOS, Apple silicon/Intel and Linux selectors work. Linux instructions state the X11 limitation. Unpublished packages remain unavailable.
+- Native WebMCP discovery exposed 19 tools. `goal_status` returned idle, unauthorized and disconnected on the deployed page.
+- https://lens-webmcp.netlify.app/bridge-releases.json returned the expected empty release manifest. No binary URL was claimed verified.
+- The production bundle is `index-Dlc_veE2.js` with `index-DkNgr1il.css`.
+
+To finish the release, resolve GitHub's account billing/spending restriction, build all four native packages, download the artifacts with their manifests, run `pnpm stage:bridge`, build/deploy the web app, and run `node --use-system-ca scripts/verify-bridge-downloads.mjs https://lens-webmcp.netlify.app`. Then smoke-test the actual downloaded applications on available native systems. No debug binary should substitute for a release package.
+
+---
 # Verification record
 
 Verified locally on Windows on September 2, 2026.

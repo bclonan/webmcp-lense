@@ -4,9 +4,9 @@ Turn any screen into an agent-addressable interface.
 
 Lens is a local-first Vue app that connects screen observation, bounded desktop actions, human approvals and a readable event log. Its deterministic desktop demos run without an API key or native installation.
 
-Open the [hosted Lens app](https://lens-webmcp.netlify.app). Netlify serves the browser app; Windows input still requires the local companion and screen sharing. See the [deployment guide](docs/DEPLOYMENT.md).
+Open the [hosted Lens app](https://lens-webmcp.netlify.app). Netlify serves the browser app; Native input still requires the local companion and screen sharing. See the [deployment guide](docs/DEPLOYMENT.md).
 
-## Run the app
+## Run the app as a contributor
 
 Requires Node.js 22.12 or newer and pnpm 11.8.
 
@@ -28,26 +28,11 @@ pnpm test:e2e
 
 ## Desktop companion
 
-Install stable Rust and your platform's build tools, then run in a visible terminal:
+Open [Desktop setup](https://lens-webmcp.netlify.app/setup). Choose your OS, download an available verified package, open Lens Bridge, and use the code in its window to pair. Normal users need no terminal or development dependencies. The native window has pause, disconnect, clear pairing, new code and quit controls. Ctrl+Alt+F10 stops input.
 
-```sh
-pnpm dev:bridge
-```
+The existing Rust companion in `apps/bridge` supports Windows, macOS and Linux X11 backends. Screen observation stays in the browser. The download selector only advertises packages whose release manifests have been staged with matching checksums. [Verification](docs/VERIFICATION.md) records unpublished or untested platforms and current release blockers.
 
-Windows uses MSVC and Visual Studio C++ Build Tools. Mac uses Xcode Command Line Tools and requires Accessibility permission for the terminal or VS Code running Lens. Linux requires an X11 graphical session and libxkbcommon development files. Wayland input is not implemented. See the [platform setup guide](docs/PLATFORMS.md).
-
-The companion binds to `127.0.0.1:47653`. It accepts the exact browser origin `http://127.0.0.1:5176`. A different dev port or static origin requires an explicit override:
-
-```sh
-cargo run --manifest-path apps/bridge/Cargo.toml -- --origin http://127.0.0.1:5178
-cargo test --manifest-path apps/bridge/Cargo.toml
-cargo build --release --manifest-path apps/bridge/Cargo.toml
-```
-
-In Workspace, press **Desktop setup**. The modal walks through sharing one monitor, starting the companion, entering its one-time pairing code, and choosing the shared monitor from the Windows display list. Lens remembers capture bounds as a suggestion, but asks for confirmation on each new share. Pairing stays active across Lens pages and successive actions for up to 30 minutes. A browser reload requires a new share and pairing. See the [setup and browser access guide](docs/DESKTOP_SETUP.md).
-
-Press **STOP CONTROL**, use **Ctrl+Alt+F10**, or type `stop` in the bridge console to disable input. Type `enable` in that console to issue a new pairing code. Restarting control requires pairing again. Run without administrator privileges.
-
+Contributors can run `pnpm dev:bridge` for the local web origin, `pnpm build:bridge`, `pnpm package:bridge` and `pnpm test:bridge`. See [bridge architecture and releases](docs/BRIDGE.md), [platform requirements](docs/PLATFORMS.md) and [setup instructions](docs/DESKTOP_SETUP.md).
 ## What works
 
 - Paint draws a house and sun through four real mock pointer paths. Notepad receives text through keyboard commands. Claims pauses before its fictional submission.

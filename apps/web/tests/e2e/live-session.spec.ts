@@ -71,7 +71,10 @@ async function fixture(page: Page, platform: 'windows' | 'macos' | 'linux' = 'wi
         timestamp: Date.now(),
         device: platform,
         displayRevision: 'layout',
-        keys: ['CTRL+C', 'CMD+C', 'CMD+A', 'CMD+V', 'CMD+S', 'CMD+W', 'CMD+SPACE', 'ENTER'],
+        keys:
+          platform === 'macos'
+            ? ['CTRL+C', 'CMD+C', 'CMD+A', 'CMD+V', 'CMD+S', 'CMD+W', 'CMD+SPACE', 'ENTER']
+            : ['CTRL+C', 'ENTER'],
         platform,
         coordinateSpace: platform === 'macos' ? 'logical-points' : 'physical-pixels',
         desktopBounds: { x: -width, y: 0, width: width * 3, height },

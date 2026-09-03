@@ -24,6 +24,7 @@ const router = createRouter({
     { path: '/', redirect: '/session' },
     { path: '/about', component: HomePage },
     { path: '/session', component: SessionPage },
+    { path: '/setup', redirect: '/session?setup=desktop' },
     { path: '/demo', component: DemoPage },
     { path: '/tools', component: ToolsPage },
     { path: '/evals', component: EvalsPage },
@@ -34,6 +35,9 @@ router.beforeEach(async (to, from) => {
   if (from.path === '/session' && to.path !== '/session' && lens.session.mode === 'live') {
     if (lens.runtime.busy) await lens.cancelGoal()
   }
+})
+router.afterEach((to) => {
+  if (to.path === '/session' && to.query.setup === 'desktop') lens.requestSetup()
 })
 app.provide(lensKey, lens)
 app.use(router)

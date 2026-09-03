@@ -6,12 +6,12 @@ Lens requires two separate user actions for live control. **Share Screen** opens
 
 - The bridge binds IPv4 loopback `127.0.0.1:47653` only. There is no remote listener.
 - Every request checks the exact configured Origin and Host. No wildcard CORS origins or ambient cookies are accepted.
-- Pairing uses 128 bits of OS randomness. A successful pairing consumes the code and issues a 256-bit session token for 30 minutes. Five attempts per 30 seconds limit code guessing.
+- Pairing uses 128 bits of OS randomness. Codes expire after five minutes. A successful pairing consumes the code and issues a 256-bit session token for 30 minutes. Five attempts per 30 seconds limit code guessing.
 - Bearer tokens stay in browser memory and never enter IndexedDB, URLs, event history or cartridges.
 - JSON requests must declare a body length of at most 16 KiB. Unknown fields and action types fail validation. Points, text, scroll amounts and path duration are bounded.
 - Only one input action can run at a time. The bridge refuses concurrent actions and duplicate command IDs. It does not queue or retry mutations.
 - STOP, disconnect and the native hotkey invalidate the session and in-flight execution epoch. Drag/text input checks cancellation between input samples, with drag checks about every 10 milliseconds. Pressed buttons and keys are released on the normal error/stop path.
-- Rearming requires the visible native console command `enable`, then a fresh browser pairing. The bridge refuses startup if it cannot register Ctrl+Alt+F10.
+- Rearming requires the visible New pairing code button in Lens Bridge, then a fresh browser pairing. The bridge refuses startup if it cannot register Ctrl+Alt+F10.
 
 ## Input limits
 

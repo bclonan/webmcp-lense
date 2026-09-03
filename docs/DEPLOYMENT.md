@@ -26,3 +26,11 @@ The companion still listens only on `127.0.0.1:47653`. No native executable runs
 Choose the shared monitor, pair using the console code, and confirm its bounds in the setup modal. Browser restrictions may block hosted access to loopback or request local-network permission. If the browser blocks it, use the local app at `http://127.0.0.1:5176` and restart the companion with the default `pnpm dev:bridge` command. A reload requires new sharing and pairing.
 
 The hosted Paint demo passed through native WebMCP. Real Windows Paint requires the interactive companion check described in [BRIDGE.md](BRIDGE.md#manual-paint-and-notepad-check).
+
+## Companion download deployment, 0.2.0
+
+Production deployment `6a98eb42098bcec14f8e2e8f` contains the new setup dialog and protocol adapter. `/setup` opens the existing desktop setup modal. The repository is private, so public binary links must use the Netlify-hosted copies of verified native release packages.
+
+`apps/web/public/bridge-releases.json` is the centralized release catalog. It currently contains no artifacts because GitHub Actions cannot start while the account has a billing/spending restriction, and local Windows release output copying returns access denied. The website explicitly reports unavailable downloads. Never fill this catalog with guessed URLs.
+
+The reproducible packaging and staging process is documented in BRIDGE.md. After staging four matching release manifests, build and deploy the app, then run the download verification script against the production origin. It downloads every advertised artifact and compares both size and SHA-256 with the staged manifests.
