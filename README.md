@@ -6,6 +6,12 @@ Lens is a local-first Vue app that connects screen observation, bounded desktop 
 
 Open the [hosted Lens app](https://lens-webmcp.netlify.app). Netlify serves the browser app; Native input still requires the local companion and screen sharing. See the [deployment guide](docs/DEPLOYMENT.md).
 
+[WebMCP tools and prompts](https://lens-webmcp.netlify.app/webmcp) · [Hackathon overview](https://lens-webmcp.netlify.app/hackathon) · [Public source repository](https://github.com/bclonan/webmcp-lense)
+
+![Lens preview](apps/web/public/og-image.png)
+
+Public YouTube demo: `[YOUTUBE_URL]`, not recorded or configured yet. The [2:50 recording script](docs/demo-video-script.md) includes exact narration, screen actions and tool calls. Live, repository and video URLs are centralized in `apps/web/src/content/project.json`. GitHub confirmed this repository is public on September 3, 2026. Publish the current source changes and new MIT license before submitting the project.
+
 ## Run the app as a contributor
 
 Requires Node.js 22.12 or newer and pnpm 11.8.
@@ -19,12 +25,15 @@ Open http://127.0.0.1:5176. Lens opens Workspace by default, with WebMCP status,
 
 ```sh
 pnpm build
+pnpm typecheck
 pnpm test
 pnpm --filter @lens/web exec playwright install chromium
 pnpm test:e2e
 ```
 
 `pnpm dev:web` starts only the web app. `apps/web/dist` is a static site. Configure a static host to serve `index.html` for application routes. Fonts ship with the site. The app has no remote data service, telemetry or model dependency.
+
+No environment variables, `.env` file or API keys are needed for the demos. Browser capture needs HTTPS or localhost and a visible permission request. Native WebMCP needs a browser implementing `document.modelContext.registerTool`; Lens detects support and falls back to local tools. It never pretends to register native tools in an unsupported browser. See [WebMCP requirements and testing](docs/WEBMCP.md).
 
 ## Desktop companion
 
@@ -33,12 +42,13 @@ Open [Desktop setup](https://lens-webmcp.netlify.app/setup). Choose your OS, dow
 The existing Rust companion in `apps/bridge` supports Windows, macOS and Linux X11 backends. Screen observation stays in the browser. The download selector only advertises packages whose release manifests have been staged with matching checksums. [Verification](docs/VERIFICATION.md) records unpublished or untested platforms and current release blockers.
 
 Contributors can run `pnpm dev:bridge` for the local web origin, `pnpm build:bridge`, `pnpm package:bridge` and `pnpm test:bridge`. See [bridge architecture and releases](docs/BRIDGE.md), [platform requirements](docs/PLATFORMS.md) and [setup instructions](docs/DESKTOP_SETUP.md).
+
 ## What works
 
 - Paint draws a house and sun through four real mock pointer paths. Notepad receives text through keyboard commands. Claims pauses before its fictional submission.
 - One deterministic runtime owns planning, target resolution, policy, approval, execution, observation and verification. UI and WebMCP share its services.
 - Live capture compares small regions on a timer, including when the desktop is otherwise still. Sharing continues across Lens pages and stops when the user ends sharing or closes the page.
-- Nineteen strict WebMCP tools register through `document.modelContext.registerTool` when available. The Tools inspector remains usable without native WebMCP.
+- Nineteen strict WebMCP tools register through `document.modelContext.registerTool` when available. `/webmcp` derives its catalog and schemas from that registry. It includes read-only testing, mutation previews, ten prompt groups and five chained workflows. `/tools` redirects there.
 - Build up to 20 ordered steps, review each requested action, and rerun explicitly from step 1. Ordinary failures stop the sequence while preserving pairing. Bridge failures and STOP revoke input.
 - Read clipboard text into a local review panel with a click. Copy reviewed text, or propose typing it. Agents can propose clipboard writes; a visible button performs them.
 - IndexedDB stores session events, settings and capability cartridges. Screenshots and video are never persisted. Credentials remain in memory.
@@ -55,12 +65,38 @@ Keyboard actions have a three-second pause after approval so you can focus the i
 
 ```text
 apps/web          Vue, Pinia, browser services, UI, unit and browser tests
-apps/bridge       Rust loopback transport and replaceable Windows input backend
+apps/bridge       Rust loopback transport and Windows, macOS, Linux X11 input backends
 packages/protocol Shared TypeScript domain and command types
 packages/schemas  Strict runtime validators and cartridge schema
 packages/fixtures Deterministic desktop states and scenarios
 docs              Architecture, security, WebMCP, protocol, bridge, demo and eval guides
 ```
+
+Vue Router owns navigation and Pinia holds shared reactive state. `LensService` connects UI and tool handlers to `ComputerRuntime`, policy, vision and bridge adapters. `Repository` persists settings, sessions and workflows in IndexedDB. The application shell registers native tools once, so changing routes retains their handlers and the shared session.
+
+## Contribute and deploy
+
+Start with [CONTRIBUTING.md](CONTRIBUTING.md). Define a tool in `apps/web/src/webmcp/tools.ts` with strict input and output validators. Add result examples and recovery notes in `apps/web/src/content/toolDocs.ts`, and chains in `content/workflows.ts`. The catalog discovers every canonical definition; tests reject missing cards, invalid arguments, invalid output examples and broken result dependencies.
+
+The optional native companion also has checks:
+
+```sh
+pnpm test:bridge
+cargo fmt --manifest-path apps/bridge/Cargo.toml -- --check
+cargo clippy --locked --manifest-path apps/bridge/Cargo.toml --all-targets -- -D warnings
+```
+
+No JavaScript lint command is configured. Type checking, unit contracts and browser tests are the current web checks. Run `git diff --check` before review.
+
+Deploy to the existing Netlify project with an authenticated CLI. Restage the ignored Windows preview binary first when working from another checkout, following [DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
+```sh
+pnpm build
+netlify deploy --filter @lens/web --site 11208571-39b6-465e-981e-8cd12e0e4f43 --prod --no-build
+node --use-system-ca scripts/verify-bridge-downloads.mjs https://lens-webmcp.netlify.app
+```
+
+The project uses the [MIT license](LICENSE), added because no repository license existed. Dependency licenses still apply. See [asset sources and regeneration](docs/ASSETS.md) for the existing Lucide mark and generated icons.
 
 ## Boundaries and limitations
 

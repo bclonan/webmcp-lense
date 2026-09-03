@@ -34,9 +34,9 @@ cargo run --manifest-path apps/bridge/Cargo.toml -- --origin http://127.0.0.1:51
 
 ## Native release process
 
-`.github/workflows/bridge.yml` builds Windows x64, macOS arm64, macOS x64 and Ubuntu 24.04 x64 independently. Each job checks formatting, runs Clippy and tests, builds with Cargo.lock, and runs `scripts/package-bridge.mjs`. The packaging script reads the crate version and commit date, then writes a versioned EXE, DMG or DEB with a JSON SHA-256 manifest. Rust dependencies are locked; OS runner and toolchain updates can change resulting bytes between builds.
+`.github/workflows/bridge.yml` builds Windows x64, macOS arm64, macOS x64 and Ubuntu 24.04 x64 independently. Each job checks formatting, runs Clippy and tests, builds with Cargo.lock, and runs `scripts/package-bridge.mjs`. The packaging script records the crate version, binary modification time, checkout commit and working-tree status, then writes a versioned EXE, DMG or DEB with a JSON SHA-256 manifest. Rust dependencies are locked; OS runner and toolchain updates can change resulting bytes between builds.
 
-A `bridge-v0.2.0` tag triggers a GitHub Release only after all build jobs succeed. The private repository's release assets require authentication. Download the four CI artifacts or release packages to `release/packages`, preserving their manifests. Run:
+A `bridge-v0.2.0` tag triggers a GitHub Release only after all build jobs succeed. The repository is public as verified on September 3, 2026. A successful workflow must still publish the release assets before they can be linked. Download the four CI artifacts or release packages to `release/packages`, preserving their manifests. Run:
 
 ```sh
 pnpm stage:bridge
@@ -44,7 +44,9 @@ pnpm build
 node --use-system-ca scripts/verify-bridge-downloads.mjs https://lens-webmcp.netlify.app
 ```
 
-Run the verification command after deploying the built site. Staging rejects missing packages, mixed versions and checksum mismatches. It copies only release packages to the ignored `apps/web/public/downloads` directory and updates the centralized `bridge-releases.json`. Netlify publishes those files with the app. Do not substitute debug binaries or advertise URLs before verifying their bytes.
+Run the verification command after deploying the built site. Normal staging rejects missing packages, mixed versions, development builds and checksum mismatches. It copies release packages to the ignored `apps/web/public/downloads` directory and updates the centralized `bridge-releases.json`. Netlify publishes those files with the app.
+
+The user-requested Windows development download has a separate path: package with `node scripts/package-bridge.mjs --development`, then stage with `node scripts/stage-bridge-downloads.mjs --preview`. This accepts only one Windows x64 development build, appends `-development` to the filename, and records `buildProfile: development`. The website labels it as an unsigned development preview. Its published bytes must pass the same download checksum verification. It does not count as completion of the native release process.
 
 No publisher signing or Apple notarization is configured. Native release build and download status is recorded in [VERIFICATION.md](VERIFICATION.md).
 

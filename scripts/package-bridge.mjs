@@ -5,25 +5,29 @@ import path from 'node:path'
 const root = path.resolve(import.meta.dirname, '..')
 const platform = { win32: 'windows', darwin: 'macos', linux: 'linux' }[process.platform]
 const architecture = process.arch
+const development = process.argv.includes('--development')
+if (development && platform !== 'windows')
+  throw new Error('Development previews currently support Windows only')
 if (!platform || !['x64', 'arm64'].includes(architecture))
   throw new Error('Unsupported package platform')
 const cargo = await readFile(path.join(root, 'apps/bridge/Cargo.toml'), 'utf8')
 const version = cargo.match(/^version = "([^"]+)"/m)[1]
 const commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim()
-const buildDate = execFileSync('git', ['show', '-s', '--format=%cI', 'HEAD'], {
+const sourceModified = !!execFileSync('git', ['status', '--porcelain'], {
   cwd: root,
   encoding: 'utf8',
 }).trim()
 const staging = path.join(root, 'release', `${platform}-${architecture}`)
-const out = path.join(root, 'release', 'packages')
+const out = path.join(root, 'release', development ? 'preview-packages' : 'packages')
 await mkdir(staging, { recursive: true })
 await mkdir(out, { recursive: true })
 const binary = path.join(
   root,
-  'apps/bridge/target/release',
+  `apps/bridge/target/${development ? 'debug' : 'release'}`,
   platform === 'windows' ? 'lens-bridge.exe' : 'lens-bridge',
 )
-const base = `Lens-Bridge-${version}-${platform}-${architecture}`
+const buildDate = (await stat(binary)).mtime.toISOString()
+const base = `Lens-Bridge-${version}-${platform}-${architecture}${development ? '-development' : ''}`
 let fileName
 if (platform === 'windows') {
   fileName = `${base}.exe`
@@ -86,7 +90,9 @@ const metadata = {
   sha256: createHash('sha256').update(content).digest('hex'),
   bytes: (await stat(path.join(out, fileName))).size,
   buildDate,
+  buildProfile: development ? 'development' : 'release',
   commit,
+  sourceModified,
   signed: false,
 }
 await writeFile(

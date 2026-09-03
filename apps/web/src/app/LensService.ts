@@ -24,6 +24,7 @@ const eventId = monotonicFactory()
 export class LensService {
   private pairing = false
   private stopping = false
+  private activeTask?: Promise<void>
   readonly session = useSessionStore()
   readonly screen = useScreenStore()
   readonly bridgeState = useBridgeStore()
@@ -44,7 +45,7 @@ export class LensService {
       this.screen.sharing = false
       this.screen.geometry.calibrated = false
       this.event('capture.stopped', 'Screen sharing ended. All media tracks stopped.')
-      void this.stop()
+      if (!this.session.resetting) void this.stop()
     },
     () => this.settings.sampleInterval,
   )
@@ -202,6 +203,7 @@ export class LensService {
     throw new Error('No screen change detected within 4 seconds. Control paused.')
   }
   async enableDemo(reset = false) {
+    if (this.session.resetting) throw new Error('Wait for the new session to finish starting.')
     if (this.runtime.busy) throw new Error('Stop the current goal before changing the desktop.')
     this.capture.stop()
     await this.bridge.disconnect().catch(() => {})
@@ -220,6 +222,7 @@ export class LensService {
       calibrated: true,
     }
     this.session.authorized = true
+    this.session.fresh = false
     this.bridgeState.status = 'connected'
     this.session.error = ''
     this.event(
@@ -232,6 +235,7 @@ export class LensService {
     await this.observe()
   }
   startGoal(text: string, plan?: GoalPlan, signal?: AbortSignal) {
+    if (this.session.resetting) throw new Error('Wait for the new session to finish starting.')
     if (!this.session.authorized || this.bridgeState.status !== 'connected') {
       if (this.session.mode === 'live')
         this.requestSetup('Pair the desktop before running this action.')
@@ -258,7 +262,9 @@ export class LensService {
     this.runtimeState.busy = true
     const task = this.runtime.run(goal, plan, signal).finally(() => {
       this.runtimeState.busy = false
+      if (this.activeTask === task) this.activeTask = undefined
     })
+    this.activeTask = task
     return { goal, task }
   }
   propose(action: ActionRequest, signal?: AbortSignal) {
@@ -324,7 +330,57 @@ export class LensService {
       this.stopping = false
     }
   }
+  async newSession() {
+    if (this.session.resetting) return
+    if (this.session.recording)
+      throw new Error('Finish saving the recording before starting a new session.')
+    if (this.pairing || this.stopping)
+      throw new Error('Wait for the bridge connection to settle, then start a new session.')
+    this.session.resetting = true
+    try {
+      // Keep cancellation, receipts and stop events attached to the old session.
+      const task = this.activeTask
+      this.bridgeState.error = ''
+      await this.stop()
+      this.capture.stop()
+      await task?.catch(() => {})
+      const previous = {
+        id: this.session.id,
+        createdAt: this.session.createdAt,
+        mode: this.session.mode,
+      }
+      await this.repository.saveSession(previous).catch(() => {
+        throw new Error(
+          'Could not save the session history. Control has stopped, but the current session has not been cleared.',
+        )
+      })
+      const stopError = this.bridgeState.error
+      this.session.history = [previous, ...this.session.history.filter((s) => s.id !== previous.id)]
+      this.runtimeState.$reset()
+      this.approvals.$reset()
+      this.screen.$reset()
+      this.bridgeState.$reset()
+      this.bridgeState.error = stopError
+      this.session.$patch({
+        id: ulid(),
+        createdAt: Date.now(),
+        mode: 'demo',
+        authorized: false,
+        events: [],
+        error: '',
+        setupOpen: false,
+        setupReason: '',
+        fresh: true,
+      })
+      this.bridge = new MockDesktopBridge(this.screen.desktop)
+      this.runtime = this.makeRuntime()
+      await this.observe()
+    } finally {
+      this.session.resetting = false
+    }
+  }
   async shareScreen() {
+    if (this.session.resetting) throw new Error('Wait for the new session to finish starting.')
     if (this.runtime.busy) throw new Error('Stop the current goal before sharing another screen.')
     const sharing = this.capture.start()
     this.session.authorized = false
@@ -343,6 +399,7 @@ export class LensService {
     await this.observe()
   }
   async pairBridge(code: string) {
+    if (this.session.resetting) throw new Error('Wait for the new session to finish starting.')
     if (this.pairing) throw new Error('Pairing is already in progress.')
     if (this.bridgeState.status === 'connected') return
     if (!this.screen.sharing || this.session.mode !== 'live')
@@ -373,6 +430,7 @@ export class LensService {
       this.bridgeState.latencyMs = bridge.latencyMs
       this.bridgeState.testedAt = Date.now()
       this.session.authorized = true
+      this.session.fresh = false
       this.runtime = this.makeRuntime()
       this.event(
         'bridge.connected',
@@ -451,6 +509,7 @@ export class LensService {
     this.runtime.cancel()
   }
   startRecording() {
+    if (this.session.resetting) throw new Error('Wait for the new session to finish starting.')
     this.recorder.start()
     this.session.recording = true
     this.event(

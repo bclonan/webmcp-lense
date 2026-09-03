@@ -108,11 +108,11 @@ async function fixture(page: Page, platform: 'windows' | 'macos' | 'linux' = 'wi
   await page.goto('/session')
   return state
 }
-async function setup(page: Page) {
+async function setup(page: Page, previousShares = 0) {
   await page.getByRole('button', { name: 'Desktop setup', exact: true }).click()
   const modal = page.getByRole('dialog')
   await expect(modal).toContainText('Choose what Lens can see')
-  expect(await page.evaluate(() => (window as any).__captureCalls)).toBe(0)
+  expect(await page.evaluate(() => (window as any).__captureCalls)).toBe(previousShares)
   await modal.getByRole('button', { name: 'Choose screen', exact: true }).click()
   await expect(modal).toContainText('Open Lens Bridge and copy its pairing code.')
   await modal.getByLabel('Pairing code', { exact: true }).fill('fixture-code')
@@ -135,6 +135,75 @@ const sequence = {
     { type: 'click', point: { x: 0.04, y: 0.08 } },
   ],
 }
+
+test('New session cancels a pending native sequence, stops sharing and resets workspace drafts', async ({
+  page,
+}) => {
+  const state = await fixture(page)
+  await setup(page)
+  const run = invoke(page, 'desktop_run_sequence', sequence)
+  await expect(page.getByRole('button', { name: 'Approve action', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'New session', exact: true }).click()
+  await run
+  await expect(page.getByText('New session ready.', { exact: false })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Enable demo control', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Approve action', exact: true })).toHaveCount(0)
+  await expect(page.getByLabel('Live shared screen')).toHaveCount(0)
+  expect(state.executed).toHaveLength(0)
+  expect(state.stops).toBeGreaterThan(0)
+  const status = await invoke(page, 'goal_status')
+  expect(status.data).toMatchObject({
+    busy: false,
+    state: 'idle',
+    authorized: false,
+    bridge: 'disconnected',
+  })
+  await setup(page, 1)
+  expect(state.pairs).toBe(2)
+})
+
+test('Windows preview download is available beside desktop setup and the modal heading', async ({
+  page,
+}) => {
+  await fixture(page)
+  const download = page.getByRole('link', { name: 'Download Windows bridge', exact: true })
+  await expect(download).toHaveAttribute(
+    'href',
+    /\/downloads\/Lens-Bridge-.*-windows-x64-development\.exe$/,
+  )
+  await expect(
+    page.locator('.workspace-actions').getByText(/Unsigned development preview/),
+  ).toBeVisible()
+  const completed = page.waitForEvent('download')
+  await download.click()
+  expect((await completed).suggestedFilename()).toMatch(/-windows-x64-development\.exe$/)
+  await page.getByRole('button', { name: 'Desktop setup', exact: true }).click()
+  const modal = page.getByRole('dialog')
+  await expect(
+    modal.getByRole('link', { name: 'Download Windows bridge', exact: true }),
+  ).toBeVisible()
+  await modal.getByLabel('Download operating system').selectOption('macos')
+  await expect(
+    modal.getByText('A verified download for this platform has not been published yet.'),
+  ).toBeVisible()
+  await expect(modal.getByRole('link', { name: 'Download for macOS', exact: true })).toHaveCount(0)
+})
+
+test('download manifest failures can be retried without reloading the workspace', async ({
+  page,
+}) => {
+  await page.route(
+    '**/bridge-releases.json',
+    (route) => route.fulfill({ status: 503, body: 'Unavailable' }),
+    { times: 1 },
+  )
+  await fixture(page)
+  await page.getByRole('button', { name: 'Desktop setup', exact: true }).click()
+  const modal = page.getByRole('dialog')
+  await expect(modal.getByRole('button', { name: 'Retry downloads', exact: true })).toBeVisible()
+  await modal.getByRole('button', { name: 'Retry downloads', exact: true }).click()
+  await expect(modal.getByRole('link', { name: 'Download for Windows', exact: true })).toBeVisible()
+})
 
 test('pairing error explains a version mismatch and a fresh attempt can succeed', async ({
   page,

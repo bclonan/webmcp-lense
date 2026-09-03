@@ -60,7 +60,7 @@ Cancellation can interrupt every active state. Abort checks run after awaited op
 
 Fixtures define semantic regions in normalized 0..1 coordinates. `screen/coordinates.ts` converts capture pixels to normalized coordinates, resolves region centers, and maps them into physical desktop bounds. Negative monitor origins are valid. Width and height are already physical pixels, so display scale is not multiplied twice. Windows requests per-monitor DPI awareness and reports its virtual desktop bounds.
 
-Live capture samples a 64 × 40 RGBA image at most twice per second using `requestVideoFrameCallback`, or animation frames as fallback. Average RGB difference compares with the last significant frame. A candidate change increments the live revision. Full frames are available through `captureFrame()` for a future provider; no bundled provider sends pixels anywhere.
+Live capture samples a 128 by 72 RGBA image on a configurable timer with a 100 ms minimum interval. A timer also detects changes in otherwise static capture streams. Global and regional RGB differences compare with the last significant frame. A candidate change increments the live revision. Full frames are available through `captureFrame()` for a future provider; no bundled provider sends pixels anywhere.
 
 `VisionProvider` returns `ScreenObservation`, independent of any vendor response format. `MockVisionProvider` reads deterministic fixtures and reports `fixture`. `RemoteVisionProvider` is the future integration contract. Live sessions report `unavailable` until a real provider is added. Fixture regions never overlay a live screen.
 
@@ -84,3 +84,7 @@ Recording keeps successful Lens actions and human annotations. It does not inter
 | `stores`, `persistence`, `types` | Reactive state, storage and environment types                    |
 
 The implementation progressed through a working mock runtime, capture, tools, native bridge and cartridges. Build checks ran between these passes.
+
+## Documentation and project overview
+
+`/webmcp` reads the existing ToolRegistry through `content/toolDocs.ts`. Editorial notes add prompts and recovery advice without creating a second registry. `/hackathon` uses the same tool count and shared content for workflows, verified project URLs and the recording script. Route metadata updates in the router hook. Neither page owns control authorization, native registration or application state. The former `/tools` route redirects to `/webmcp`.

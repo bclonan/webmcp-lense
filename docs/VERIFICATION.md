@@ -1,3 +1,19 @@
+# Windows download and new session, 2026-09-03
+
+Production deploy `6a9909ba043c5fcb89595175` contains the built Windows x64 development preview and New session in Workspace. The button stops control and capture, cancels approvals, waits for an executing receipt, and starts an unauthorized fresh session. It keeps saved workflows and previous session history. Active recordings must be saved first. A history save failure leaves the old session visible with control stopped.
+
+- `pnpm test`: 63 passed, including cancellation, late receipt isolation, recording retention and storage-failure recovery.
+- `pnpm build`: passed Vue type checking and production bundling. Build ID `2026-09-03T05:44:04.673Z`, JavaScript `index-PaHxSq_Z.js`.
+- Browser suite: 22 passed on the full run; the new-session scenario failed only because its setup helper expected zero earlier screen shares on the second session. After correcting that expectation, the targeted new-session rerun passed. All 23 scenarios have passed on the final application code. Download, catalog retry, mobile layout and existing approval workflows passed.
+- Visual browser check: Workspace and the connection dialog show the Windows download and build label. The deployed New session button returned the workspace to idle, disconnected and unauthorized. Native WebMCP still exposed 19 tools.
+- `node --use-system-ca scripts/verify-bridge-downloads.mjs https://lens-webmcp.netlify.app` downloaded the production EXE and matched its size and SHA-256 with the staged file.
+
+The artifact is `Lens-Bridge-0.2.1-windows-x64-development.exe`, 11,082,240 bytes. SHA-256: `d8418748fa8be8662182bb30aa64b9b48f41a91252e664b5bea207bf7e15d132`. It is the previously built and launched development executable. This turn copied and checksum-verified it; it did not rebuild native code or launch the downloaded copy. No native OS input was sent. The Windows release-output and CI billing blockers remain unresolved, and macOS/Linux downloads remain unavailable.
+
+Earlier entries below record previous deployments.
+
+---
+
 # Pairing recovery patch, 2026-09-02
 
 The current browser build and local development companion fix the old-tab pairing failure shown as `Error: [object Object]`. The old page omitted `protocolVersion`; Bridge 0.2.1 now rejects that request with a readable reload message. It does not consume the code or accept the old protocol. Versioned clients keep structured errors.

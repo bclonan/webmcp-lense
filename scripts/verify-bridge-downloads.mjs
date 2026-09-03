@@ -6,7 +6,11 @@ const base = new URL(process.argv[2] || 'https://lens-webmcp.netlify.app')
 const expected = JSON.parse(
   await readFile(path.join(root, 'apps/web/public/bridge-releases.json'), 'utf8'),
 )
-if (expected.artifacts.length !== 4)
+const preview =
+  expected.artifacts.length === 1 &&
+  expected.artifacts[0].platform === 'windows' &&
+  expected.artifacts[0].buildProfile === 'development'
+if (!preview && expected.artifacts.length !== 4)
   throw new Error('No complete release is staged. Do not advertise unavailable downloads.')
 const response = await fetch(new URL('/bridge-releases.json', base))
 if (!response.ok) throw new Error(`Manifest returned ${response.status}`)

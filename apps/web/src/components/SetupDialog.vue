@@ -2,6 +2,7 @@
 import { computed, ref, watch, nextTick } from 'vue'
 import { useLens } from '../app/context'
 import BridgeDownloads from './BridgeDownloads.vue'
+import BridgeDownloadLink from './BridgeDownloadLink.vue'
 import { BridgeError, errorMessage } from '../bridge/errors'
 const lens = useLens(),
   dialog = ref<HTMLDialogElement>(),
@@ -109,6 +110,7 @@ function confirm() {
           {{ step === 4 ? 'Ready to work together' : 'Connect Lens to your desktop' }}
         </h2>
       </div>
+      <BridgeDownloadLink />
       <button class="text-link" aria-label="Close desktop setup" @click="close">Close</button>
     </div>
     <ol class="setup-progress" aria-label="Setup progress">

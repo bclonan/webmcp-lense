@@ -1,5 +1,5 @@
-Lens Bridge 0.2.0 is an unsigned preview. The existing Rust bridge now opens as a desktop application with a visible five-minute pairing code, connection state, emergency stop and a local action log. Wire protocol 1 adds session and command IDs, structured receipts, capability negotiation and display-layout validation.
+Lens Bridge 0.2.1 is available as an unsigned Windows x64 development preview on the Lens website. It has a visible five-minute pairing code, connection state, emergency stop and a local action log. It rejects older browser tabs with readable reload instructions. Wire protocol 1 includes session and command IDs, structured receipts, capability negotiation and display-layout validation.
 
-Windows x64, macOS Apple silicon and Intel, and Ubuntu 24.04+ X11 packages are built independently. macOS builds are not signed or notarized. Wayland native input is unavailable. Screen observation remains in the browser and requires screen-sharing permission. Native input on macOS requires Accessibility permission for Lens Bridge.
+The Windows development build may open a console alongside the companion window. Keep both open. A full release build is still blocked, and macOS Apple silicon, macOS Intel and Ubuntu X11 downloads are not available. Wayland native input is unavailable. Screen observation remains in the browser and requires screen-sharing permission.
 
-Packages include per-platform SHA-256 manifests. This repository is private; the public Lens site distributes checksum-verified copies of these release packages.
+The public Lens site distributes the Windows development EXE with its size and SHA-256 checksum. No publisher signature or native input smoke test on a downloaded copy is claimed.

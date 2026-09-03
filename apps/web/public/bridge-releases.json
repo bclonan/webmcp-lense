@@ -1,1 +1,21 @@
-{"version":"0.2.0","protocolVersion":1,"artifacts":[]}
+{
+  "version": "0.2.1",
+  "protocolVersion": 1,
+  "artifacts": [
+    {
+      "version": "0.2.1",
+      "protocolVersion": 1,
+      "platform": "windows",
+      "architecture": "x64",
+      "fileName": "Lens-Bridge-0.2.1-windows-x64-development.exe",
+      "sha256": "d8418748fa8be8662182bb30aa64b9b48f41a91252e664b5bea207bf7e15d132",
+      "bytes": 11082240,
+      "buildDate": "2026-09-03T03:49:45.642Z",
+      "buildProfile": "development",
+      "commit": "03c9b7e22327daf1a74374281e4bdf8cd1df8792",
+      "sourceModified": true,
+      "signed": false,
+      "url": "/downloads/Lens-Bridge-0.2.1-windows-x64-development.exe"
+    }
+  ]
+}

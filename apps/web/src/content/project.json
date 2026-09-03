@@ -1,0 +1,16 @@
+{
+  "name": "Lens",
+  "description": "Turn a screen into reviewed actions with shared state, structured WebMCP tools and a visible event timeline.",
+  "liveUrl": "https://lens-webmcp.netlify.app",
+  "repositoryUrl": "https://github.com/bclonan/webmcp-lense",
+  "repositoryPublic": true,
+  "repositoryVerifiedAt": "2026-09-03",
+  "youtubeUrl": "[YOUTUBE_URL]",
+  "license": "MIT",
+  "licensePublishedToRepository": false,
+  "placeholders": {
+    "liveUrl": "[LIVE_URL]",
+    "repositoryUrl": "[REPOSITORY_URL]",
+    "youtubeUrl": "[YOUTUBE_URL]"
+  }
+}

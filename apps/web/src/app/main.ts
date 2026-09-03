@@ -6,12 +6,15 @@ import HomePage from '../pages/HomePage.vue'
 import SessionPage from '../pages/SessionPage.vue'
 import DemoPage from '../pages/DemoPage.vue'
 import SettingsPage from '../pages/SettingsPage.vue'
-import ToolsPage from '../pages/ToolsPage.vue'
+import WebMcpPage from '../pages/WebMcpPage.vue'
+import HackathonPage from '../pages/HackathonPage.vue'
 import EvalsPage from '../pages/EvalsPage.vue'
 import { LensService } from './LensService'
 import { lensKey } from './context'
 import './style.css'
 import './panels.css'
+import './docs.css'
+import { updateMetadata } from '../content/metadata'
 import '@fontsource-variable/dm-sans/wght.css'
 import '@fontsource-variable/manrope/wght.css'
 import { registerNativeTools } from '../webmcp/nativeAdapter'
@@ -20,13 +23,26 @@ app.use(createPinia())
 const lens = new LensService()
 const router = createRouter({
   history: createWebHistory(),
+  scrollBehavior(to, from, savedPosition) {
+    if (savedPosition) return savedPosition
+    if (to.path !== from.path && ['/webmcp', '/hackathon'].includes(to.path)) {
+      if (to.hash)
+        return {
+          el: to.hash,
+          top: document.querySelector('.site-header')!.getBoundingClientRect().height + 20,
+        }
+      return { left: 0, top: 0 }
+    }
+  },
   routes: [
     { path: '/', redirect: '/session' },
     { path: '/about', component: HomePage },
     { path: '/session', component: SessionPage },
     { path: '/setup', redirect: '/session?setup=desktop' },
     { path: '/demo', component: DemoPage },
-    { path: '/tools', component: ToolsPage },
+    { path: '/tools', redirect: '/webmcp' },
+    { path: '/webmcp', component: WebMcpPage },
+    { path: '/hackathon', component: HackathonPage },
     { path: '/evals', component: EvalsPage },
     { path: '/settings', component: SettingsPage },
   ],
@@ -37,6 +53,7 @@ router.beforeEach(async (to, from) => {
   }
 })
 router.afterEach((to) => {
+  updateMetadata(to.path)
   if (to.path === '/session' && to.query.setup === 'desktop') lens.requestSetup()
 })
 app.provide(lensKey, lens)

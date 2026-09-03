@@ -1,6 +1,8 @@
 .workspace-actions {
   display: flex;
   gap: 20px;
+  flex-wrap: wrap;
+  align-items: center;
 }
 .live-screen {
   padding: 13px;
@@ -547,6 +549,7 @@
 }
 .setup-heading {
   display: flex;
+  flex-wrap: wrap;
   align-items: start;
   justify-content: space-between;
   gap: 20px;

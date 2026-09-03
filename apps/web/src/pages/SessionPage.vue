@@ -8,6 +8,7 @@ import {
   CircleStop,
   MousePointer2,
   Monitor,
+  Plus,
 } from 'lucide-vue-next'
 import { useLens } from '../app/context'
 import MockDesktop from '../components/MockDesktop.vue'
@@ -18,6 +19,7 @@ import WorkflowPanel from '../components/WorkflowPanel.vue'
 import ActionComposer from '../components/ActionComposer.vue'
 import ClipboardPanel from '../components/ClipboardPanel.vue'
 import WorkspaceTools from '../components/WorkspaceTools.vue'
+import BridgeDownloadLink from '../components/BridgeDownloadLink.vue'
 const lens = useLens(),
   goal = ref('Open Paint and draw a small house with a sun.')
 async function enable() {
@@ -45,6 +47,13 @@ function dismissError() {
   lens.session.error = ''
   lens.bridgeState.error = ''
 }
+async function newSession() {
+  try {
+    await lens.newSession()
+  } catch (error) {
+    lens.session.error = error instanceof Error ? error.message : String(error)
+  }
+}
 </script>
 <template>
   <section class="workspace-heading">
@@ -53,13 +62,36 @@ function dismissError() {
       <h1>See. Act. Verify.</h1>
     </div>
     <div class="workspace-actions">
+      <button
+        class="text-link"
+        :disabled="
+          lens.session.resetting ||
+          lens.session.recording ||
+          lens.bridgeState.status === 'connecting'
+        "
+        :title="
+          lens.session.recording
+            ? 'Finish saving the recording before starting a new session.'
+            : 'Start fresh. Ends sharing and pairing; saved workflows and session history stay.'
+        "
+        @click="newSession"
+      >
+        <Plus :size="14" /> {{ lens.session.resetting ? 'Starting session…' : 'New session' }}
+      </button>
       <button class="text-link" :disabled="lens.runtimeState.busy" @click="lens.requestSetup()">
         <Monitor :size="14" /> Desktop setup</button
-      ><RouterLink to="/demo" class="text-link"
+      ><BridgeDownloadLink /><RouterLink to="/demo" class="text-link"
         >Choose a demo <ArrowUpRight :size="15"
       /></RouterLink>
     </div>
   </section>
+  <p v-if="lens.session.fresh" class="notice" role="status">
+    New session ready. Choose a demo or connect your desktop. Saved workflows and session history
+    are still available.
+  </p>
+  <p v-if="lens.session.recording" class="control-note">
+    Finish saving your recording to start a new session.
+  </p>
   <div class="status-strip">
     <span
       ><i :class="{ on: lens.session.mode === 'demo' || lens.screen.sharing }" /> Screen

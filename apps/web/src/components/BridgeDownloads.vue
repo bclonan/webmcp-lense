@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { z } from 'zod'
+import { computed, ref } from 'vue'
+import { useBridgeDownloads } from '../bridge/downloads'
 const origin = window.location.origin
 const platform = ref(
   /Mac/i.test(navigator.platform)
@@ -10,34 +10,7 @@ const platform = ref(
       : 'windows',
 )
 const architecture = ref('arm64')
-const releaseSchema = z.object({
-  version: z.string(),
-  protocolVersion: z.literal(1),
-  artifacts: z.array(
-    z.object({
-      platform: z.enum(['windows', 'macos', 'linux']),
-      architecture: z.enum(['x64', 'arm64']),
-      version: z.string(),
-      fileName: z.string().regex(/^Lens-Bridge-[a-zA-Z0-9.\-]+$/),
-      url: z.string().regex(/^\/downloads\/Lens-Bridge-[a-zA-Z0-9.\-]+$/),
-      sha256: z.string().regex(/^[a-f0-9]{64}$/),
-      buildDate: z.string(),
-      bytes: z.number().positive(),
-      signed: z.boolean(),
-    }),
-  ),
-})
-const releases = ref<z.infer<typeof releaseSchema> | null>(null)
-const error = ref('')
-onMounted(async () => {
-  try {
-    const response = await fetch('/bridge-releases.json', { cache: 'no-store' })
-    if (!response.ok) throw new Error()
-    releases.value = releaseSchema.parse(await response.json())
-  } catch {
-    error.value = 'Downloads could not be loaded. Refresh this page to try again.'
-  }
-})
+const { releases, error, loading, reload } = useBridgeDownloads()
 const selected = computed(() =>
   releases.value?.artifacts.find(
     (a) =>
@@ -80,6 +53,10 @@ const selected = computed(() =>
         {{ (selected.bytes / 1048576).toFixed(1) }} MB ·
         {{ selected.signed ? 'Signed' : 'Unsigned preview' }}
       </p>
+      <p v-if="selected.buildProfile === 'development'" class="control-note">
+        Development build. On Windows, a console may open alongside Lens Bridge. Keep both windows
+        open.
+      </p>
       <details>
         <summary>Verify this download</summary>
         <p>Built {{ selected.buildDate }}. SHA-256</p>
@@ -87,8 +64,15 @@ const selected = computed(() =>
       </details>
     </template>
     <p v-else role="status">
-      {{ error || 'A verified download for this platform has not been published yet.' }}
+      {{
+        loading
+          ? 'Loading downloads…'
+          : error || 'A verified download for this platform has not been published yet.'
+      }}
     </p>
+    <button v-if="error" class="button light" :disabled="loading" @click="reload">
+      Retry downloads
+    </button>
     <ol class="setup-instructions">
       <li v-if="platform === 'windows'">
         Download the app and open Lens Bridge. No installer or terminal is needed.
