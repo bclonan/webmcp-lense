@@ -4,6 +4,10 @@ Production: https://lens-webmcp.netlify.app
 
 Netlify project: `11208571-39b6-465e-981e-8cd12e0e4f43`
 
+The current pairing recovery patch is production deploy `6a98ef343b8aa54b98d6daf2`. Its build ID is `2026-09-03T03:49:01.539Z`. The deployed setup page and native WebMCP status were checked in the browser.
+
+Pages revalidate on load. `/app-version.json` is not cached. Tabs running this patch check the marker when visible and every minute, then offer Reload to update if the build changed. Updates never force a reload during screen sharing. Tabs from before this patch need one manual reload to receive the update checker.
+
 The root `netlify.toml` builds with `pnpm build`, publishes `apps/web/dist`, and rewrites application routes to `index.html`. This deployment uploaded a local build. Git-based automatic deployments are not configured.
 
 To publish a later local build using an authenticated Netlify CLI:
@@ -23,7 +27,7 @@ cargo run --manifest-path apps/bridge/Cargo.toml -- --origin https://lens-webmcp
 
 The companion still listens only on `127.0.0.1:47653`. No native executable runs on Netlify. The setup modal shows the command for the current page origin. Use the production URL consistently. A deploy-preview URL has a different origin and requires its own companion command.
 
-Choose the shared monitor, pair using the console code, and confirm its bounds in the setup modal. Browser restrictions may block hosted access to loopback or request local-network permission. If the browser blocks it, use the local app at `http://127.0.0.1:5176` and restart the companion with the default `pnpm dev:bridge` command. A reload requires new sharing and pairing.
+Choose the shared monitor, pair using the code in the companion window, and confirm its bounds in the setup modal. Browser restrictions may block hosted access to loopback or request local-network permission. If the browser blocks it, use the local app at `http://127.0.0.1:5176` and restart the companion with the default `pnpm dev:bridge` command. A reload requires new sharing and pairing.
 
 The hosted Paint demo passed through native WebMCP. Real Windows Paint requires the interactive companion check described in [BRIDGE.md](BRIDGE.md#manual-paint-and-notepad-check).
 

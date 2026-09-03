@@ -48,6 +48,12 @@ fn http_pairing_validation_receipts_and_stop_without_os_input() {
     };
     let origin = "http://127.0.0.1:5176";
     let code = app.session.lock().unwrap().code.clone();
+    let (status, legacy) = post("/pair", origin, "", json!({"code":code}));
+    assert_eq!(status, 400);
+    assert_eq!(legacy["errorCode"], "protocol_mismatch");
+    assert!(legacy["error"].as_str().unwrap().contains("Reload"));
+    assert!(app.session.lock().unwrap().token.is_none());
+    assert_eq!(app.session.lock().unwrap().code, code);
     assert_eq!(post("/execute", origin, "", json!({})).0, 401);
     assert_eq!(
         post(

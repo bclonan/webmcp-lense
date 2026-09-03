@@ -147,7 +147,7 @@ fn error_value(error: Fault) -> Value {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct PairRequest {
-    protocol_version: u32,
+    protocol_version: Option<u32>,
     code: String,
 }
 #[derive(Deserialize)]
@@ -264,7 +264,10 @@ fn handle(mut request: Request, app: &App) {
         if path == "/pair" {
             let pair: PairRequest = serde_json::from_str(&body)
                 .map_err(|_| fault("invalid_request", "Expected protocolVersion and code"))?;
-            check_version(pair.protocol_version)?;
+            check_version(pair.protocol_version.ok_or_else(|| fault(
+                "protocol_mismatch",
+                "This Lens browser tab is out of date. Reload the Lens page, share your screen again, then pair. This code has not been used; copy it again if it is still valid.",
+            ))?)?;
             app.control
                 .check(app.control.epoch.load(Ordering::SeqCst))
                 .map_err(|e| fault("control_paused", e))?;
@@ -404,8 +407,23 @@ fn handle(mut request: Request, app: &App) {
     match outcome {
         Ok(body) => response(request, 200, body, Some(&origin)),
         Err(error) => {
-            app.log(format!("Rejected {}: {}", path, error.code));
-            response(request, 400, error_value(error), Some(&origin));
+            // The pre-versioned web app renders `error` as a string. Give it a
+            // readable upgrade message without accepting unversioned input.
+            let legacy_pair = path == "/pair"
+                && serde_json::from_str::<Value>(&body)
+                    .is_ok_and(|value| value.get("protocolVersion").is_none());
+            if error.code == "protocol_mismatch" {
+                app.log("Pairing blocked: reload the Lens browser page to update its protocol. The pairing code was not consumed.".into());
+            } else {
+                app.log(format!("Rejected {}: {}", path, error.code));
+            }
+            let mut value = error_value(error);
+            if legacy_pair {
+                value["errorCode"] = value["error"]["code"].clone();
+                value["errorDetails"] = value["error"].clone();
+                value["error"] = value["error"]["message"].clone();
+            }
+            response(request, 400, value, Some(&origin));
         }
     }
 }

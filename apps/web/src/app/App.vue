@@ -2,6 +2,7 @@
 import { Aperture, ArrowUpRight, Square } from 'lucide-vue-next'
 import { useLens } from './context'
 import SetupDialog from '../components/SetupDialog.vue'
+import AppUpdate from '../components/AppUpdate.vue'
 const lens = useLens()
 </script>
 <template>
@@ -35,6 +36,7 @@ const lens = useLens()
         </button>
       </div>
     </header>
+    <AppUpdate />
     <div
       v-if="lens.session.mode === 'live' && lens.screen.sharing"
       class="connection-banner"

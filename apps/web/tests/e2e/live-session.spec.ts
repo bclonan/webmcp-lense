@@ -136,6 +136,48 @@ const sequence = {
   ],
 }
 
+test('pairing error explains a version mismatch and a fresh attempt can succeed', async ({
+  page,
+}) => {
+  await fixture(page)
+  await page.route(
+    'http://127.0.0.1:47653/pair',
+    (route) =>
+      route.fulfill({
+        status: 400,
+        json: {
+          error: {
+            code: 'protocol_mismatch',
+            message: 'Reload the Lens page to update its protocol.',
+          },
+        },
+      }),
+    { times: 1 },
+  )
+  await page.getByRole('button', { name: 'Desktop setup', exact: true }).click()
+  const modal = page.getByRole('dialog')
+  await modal.getByRole('button', { name: 'Choose screen', exact: true }).click()
+  await modal.getByLabel('Pairing code', { exact: true }).fill('fixture-code')
+  await modal.getByRole('button', { name: 'Pair bridge', exact: true }).click()
+  await expect(modal.getByRole('alert')).toContainText('Reload the Lens page')
+  await expect(modal).not.toContainText('[object Object]')
+  await expect(modal.getByRole('button', { name: 'Reload Lens', exact: true })).toBeVisible()
+  await modal.getByRole('button', { name: 'Pair bridge', exact: true }).click()
+  await expect(modal.getByLabel('Shared monitor', { exact: true })).toBeVisible()
+})
+
+test('a newly deployed version offers a reload without interrupting sharing', async ({ page }) => {
+  await page.route('**/app-version.json', (route) =>
+    route.fulfill({ json: { buildId: 'newer-deployment', protocolVersion: 1 } }),
+  )
+  await fixture(page)
+  await expect(page.getByRole('button', { name: 'Reload to update', exact: true })).toBeVisible()
+  await setup(page)
+  expect(await page.evaluate(() => (window as any).__captureCalls)).toBe(1)
+  await expect(page.getByLabel('Live shared screen')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Reload to update', exact: true })).toBeVisible()
+})
+
 for (const platform of ['macos', 'linux'] as const) {
   test(`${platform} companion pairs and exposes the correct keyboard choices`, async ({ page }) => {
     const state = await fixture(page, platform)

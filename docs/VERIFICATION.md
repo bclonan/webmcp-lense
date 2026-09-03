@@ -1,6 +1,27 @@
+# Pairing recovery patch, 2026-09-02
+
+The current browser build and local development companion fix the old-tab pairing failure shown as `Error: [object Object]`. The old page omitted `protocolVersion`; Bridge 0.2.1 now rejects that request with a readable reload message. It does not consume the code or accept the old protocol. Versioned clients keep structured errors.
+
+The browser extracts structured and legacy errors, offers reload guidance, retries temporary capability checks once, and ignores responses from disconnected sessions. Pairing and native input never retry automatically. A lost input response tells the user the action may already have happened. New deployments expose a build marker and show a user-clicked update banner in already-open tabs running this patch.
+
+Verified on the final code:
+
+- `pnpm test`: 60 passed.
+- `pnpm test:e2e`: all 20 passed in the final full run. New cases cover pairing error recovery and update notices without interrupting sharing.
+- Rust tests: 10 passed. The real HTTP server test rejects an unversioned pair without consuming the code, then completes the versioned pairing and command sequence using fake input.
+- `cargo clippy --locked --manifest-path apps/bridge/Cargo.toml --all-targets -- -D warnings`, Rust formatting, and `pnpm build` passed.
+- The Windows development build succeeded. The rebuilt 0.2.1 companion has a responsive Lens Bridge window and uses the production origin. A real unversioned request to that process returned HTTP 400, `errorCode: protocol_mismatch`, and a readable string explaining how to reload. No OS input was sent.
+- Windows release output copying still fails with Access is denied, OS error 5. This patch does not claim a packaged native release or a downloaded launch test. The previously recorded CI billing blocker remains unresolved.
+
+Production deploy `6a98ef343b8aa54b98d6daf2` is live at https://lens-webmcp.netlify.app. The hosted `/setup` returned HTTP 200 and bundle `index-Dk8nBfNu.js`. Its cache policy is `must-revalidate, no-cache, max-age=0`. `/app-version.json` returned build ID `2026-09-03T03:49:01.539Z`, protocol 1 and `Cache-Control: no-store`.
+
+The actual in-app browser loaded the deployed setup dialog, then showed Workspace with all 19 native WebMCP tools and the event timeline. `goal_status` returned idle, disconnected and unauthorized. Actual screen sharing, successful native pairing and approved OS input were not repeated in this patch verification.
+
+---
+
 # Companion release verification, 2026-09-02
 
-This section is the current 0.2.0 status. Earlier entries below are historical evidence.
+This section records the earlier 0.2.0 release attempt. The patch status above is current.
 
 The existing Rust bridge was reused. It now has a visible eframe application window and wire protocol 1. The web setup, optional download selectors, protocol adapter and documentation are deployed to https://lens-webmcp.netlify.app. Production deployment ID: `6a98eb42098bcec14f8e2e8f`.
 

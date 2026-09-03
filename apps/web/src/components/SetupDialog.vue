@@ -2,11 +2,16 @@
 import { computed, ref, watch, nextTick } from 'vue'
 import { useLens } from '../app/context'
 import BridgeDownloads from './BridgeDownloads.vue'
+import { BridgeError, errorMessage } from '../bridge/errors'
 const lens = useLens(),
   dialog = ref<HTMLDialogElement>(),
   code = ref(''),
   error = ref(''),
   copying = ref('')
+const reloadSuggested = ref(false)
+function reloadPage() {
+  window.location.reload()
+}
 const lensOrigin = window.location.origin
 const bridgeCommand =
   lensOrigin === 'http://127.0.0.1:5176'
@@ -54,11 +59,17 @@ async function share() {
 }
 async function pair() {
   error.value = ''
+  reloadSuggested.value = false
   try {
     await lens.pairBridge(code.value.trim())
     code.value = ''
   } catch (e) {
-    error.value = `Could not pair. Keep the companion running. If the code was already used or control stopped, click New pairing code in its window. ${String(e)}`
+    error.value = errorMessage(e)
+    reloadSuggested.value =
+      e instanceof BridgeError &&
+      ['protocol_mismatch', 'invalid_request', 'invalid_response'].includes(e.code)
+    await nextTick()
+    dialog.value?.querySelector('[role="alert"]')?.scrollIntoView({ block: 'nearest' })
   }
 }
 async function copyCommand() {
@@ -241,6 +252,12 @@ function confirm() {
       </div>
     </section>
     <p v-if="error" class="notice warning" role="alert">{{ error }}</p>
+    <div v-if="reloadSuggested" class="notice">
+      <p>
+        Reloading ends screen sharing and pairing. Choose your screen again after the page updates.
+      </p>
+      <button class="button light" @click="reloadPage">Reload Lens</button>
+    </div>
     <div class="setup-footer">
       <span>Raw screen frames stay in memory.</span
       ><button class="text-link" @click="lens.stop()">Stop control</button>

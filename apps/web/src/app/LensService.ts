@@ -15,6 +15,7 @@ import { ComputerRuntime } from '../runtime/ComputerRuntime'
 import { pause } from '../runtime/async'
 import { ScreenCaptureService } from '../screen/ScreenCaptureService'
 import { LocalDesktopBridge } from '../bridge/LocalDesktopBridge'
+import { BridgeError, errorMessage } from '../bridge/errors'
 import { CartridgeService, compileCartridge, starterCartridge } from '../workflows/CartridgeService'
 import { cartridgeSchema, sequenceSchema } from '@lens/schemas'
 import { createTools } from '../webmcp/tools'
@@ -144,10 +145,10 @@ export class LensService {
     const bridge = this.bridge
     try {
       const capabilities = await bridge.capabilities()
-      this.bridgeState.latencyMs = bridge instanceof LocalDesktopBridge ? bridge.latencyMs : 0
-      this.bridgeState.testedAt = Date.now()
       if (bridge !== this.bridge || this.bridgeState.status !== 'connected' || this.runtime.busy)
         return
+      this.bridgeState.latencyMs = bridge instanceof LocalDesktopBridge ? bridge.latencyMs : 0
+      this.bridgeState.testedAt = Date.now()
       if (
         JSON.stringify(capabilities.desktopBounds) !==
           JSON.stringify(this.bridgeState.capabilities?.desktopBounds) ||
@@ -158,10 +159,10 @@ export class LensService {
         this.bridgeState.capabilities = capabilities
         this.requestSetup('Your display arrangement changed. Confirm the shared monitor again.')
       }
-    } catch {
+    } catch (error) {
       if (bridge === this.bridge && this.bridgeState.status === 'connected')
         await this.connectionLost(
-          'The bridge stopped responding or pairing expired. Start or re-enable it, then pair again.',
+          `${errorMessage(error)} Click New pairing code in Lens Bridge, then pair again.`,
         )
     }
   }
@@ -383,8 +384,19 @@ export class LensService {
     } catch (error) {
       this.session.authorized = false
       this.bridgeState.status = 'disconnected'
+      this.bridgeState.expiresAt = 0
+      this.bridgeState.capabilities = null
+      this.screen.geometry.calibrated = false
       await bridge.disconnect().catch(() => {})
-      throw error
+      const message = errorMessage(error)
+      const recovery = bridge.expiresAt
+        ? `${message} The connection could not finish. Click New pairing code in Lens Bridge and pair again.`
+        : message
+      this.bridgeState.error = recovery
+      throw new BridgeError(
+        error instanceof BridgeError ? error.code : 'connection_failed',
+        recovery,
+      )
     } finally {
       this.pairing = false
     }

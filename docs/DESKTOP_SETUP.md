@@ -37,6 +37,9 @@ If a browser asks to connect to the local network, permit the connection to the 
 
 ## Troubleshooting
 
+- Out-of-date tab or protocol mismatch: reload Lens, share the screen again and use the current companion. A rejected unversioned request does not use the code, but it still expires after five minutes. Click New pairing code if needed.
+- Connection check interrupted: Lens retries a temporary capability-check failure once. If the check still fails, follow the displayed reconnect instructions. Pairing and input do not retry automatically.
+- Action response lost: check the target app before proposing another action. The input may already have happened.
 - Expired or consumed code: click New pairing code in Lens Bridge and use the fresh code once.
 - Wrong website: both windows must show the exact same origin, including scheme and port. Change website in the companion revokes the old pairing.
 - Port 47653 unavailable: quit the other Lens Bridge instance. Only one instance should listen.

@@ -11,11 +11,13 @@ import {
   bridgeRequestSchema,
   bridgeReceiptSchema,
 } from '@lens/schemas'
+import { BridgeError, responseError } from './errors'
 export class LocalDesktopBridge implements DesktopBridge {
   private token = ''
   private sessionId = ''
   private manifest: BridgeCapabilities | null = null
   private generation = 0
+  private capabilityRequest: Promise<BridgeCapabilities> | null = null
   expiresAt = 0
   latencyMs = 0
   private readonly url = 'http://127.0.0.1:47653'
@@ -23,29 +25,80 @@ export class LocalDesktopBridge implements DesktopBridge {
   private sessionBody() {
     return { protocolVersion: 1, sessionId: this.sessionId, timestamp: Date.now() }
   }
-  private async request(path: string, body: unknown = this.sessionBody(), token = this.token) {
-    const start = performance.now()
-    const response = await fetch(this.url + path, {
-      method: 'POST',
-      mode: 'cors',
-      credentials: 'omit',
-      cache: 'no-store',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(8000),
-    })
-    const value = await response.json()
-    this.latencyMs = Math.round(performance.now() - start)
-    if (!response.ok)
-      throw new Error(
-        typeof value.error === 'string'
-          ? value.error
-          : `${value.error?.code ?? 'connection_failed'}: ${value.error?.message ?? `Bridge returned HTTP ${response.status}`}`,
-      )
-    return value
+  private async request(
+    path: string,
+    body: unknown = this.sessionBody(),
+    token = this.token,
+    readGeneration?: number,
+  ) {
+    // Only authenticated read requests may retry. Pairing and input are single-attempt.
+    for (let attempt = 0; ; attempt++) {
+      if (readGeneration !== undefined && readGeneration !== this.generation)
+        throw new BridgeError('cancelled', 'Connection check cancelled.')
+      const start = performance.now()
+      try {
+        const response = await fetch(this.url + path, {
+          method: 'POST',
+          mode: 'cors',
+          credentials: 'omit',
+          cache: 'no-store',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(8000),
+        })
+        let value: unknown
+        try {
+          value = await response.json()
+        } catch (error) {
+          if (error instanceof Error && ['AbortError', 'TimeoutError'].includes(error.name))
+            throw error
+          if (!response.ok) throw responseError(null, response.status)
+          throw new BridgeError(
+            'invalid_response',
+            'The companion returned an unreadable response. Restart Lens Bridge and reload this page.',
+          )
+        }
+        this.latencyMs = Math.round(performance.now() - start)
+        if (!response.ok) throw responseError(value, response.status)
+        return value
+      } catch (error) {
+        const timeout =
+          error instanceof Error && ['TimeoutError', 'AbortError'].includes(error.name)
+        const failure =
+          error instanceof BridgeError
+            ? error
+            : new BridgeError(
+                timeout ? 'connection_timeout' : 'connection_unavailable',
+                timeout
+                  ? 'Lens Bridge took too long to respond.'
+                  : "Could not reach Lens Bridge. Keep it open, check that Allowed website matches this page, and allow the browser's local-network prompt if shown.",
+                true,
+              )
+        if (
+          readGeneration !== undefined &&
+          attempt === 0 &&
+          failure.retryable &&
+          readGeneration === this.generation
+        ) {
+          await new Promise((resolve) => setTimeout(resolve, 250))
+          continue
+        }
+        if (path === '/pair' && failure.retryable)
+          throw new BridgeError(
+            failure.code,
+            `${failure.message} Pairing was not confirmed. The code may have been used; click New pairing code in Lens Bridge before trying again.`,
+          )
+        if (path === '/execute' && failure.retryable)
+          throw new BridgeError(
+            'execution_uncertain',
+            `${failure.message} The action may already have happened. Check the target app before proposing another action.`,
+          )
+        throw failure
+      }
+    }
   }
   async connect() {
     const generation = ++this.generation
@@ -53,8 +106,9 @@ export class LocalDesktopBridge implements DesktopBridge {
     this.pairingCode = ''
     const parsed = pairedResponseSchema.safeParse(raw)
     if (!parsed.success)
-      throw new Error(
-        'Companion protocol mismatch. Download the current Lens Bridge and pair again.',
+      throw new BridgeError(
+        'protocol_mismatch',
+        'Companion protocol mismatch. Reload this page and use the current Lens Bridge, then pair again.',
       )
     const response = parsed.data
     if (generation !== this.generation) {
@@ -69,8 +123,29 @@ export class LocalDesktopBridge implements DesktopBridge {
     this.sessionId = response.sessionId
     this.expiresAt = Date.now() + response.expiresIn * 1000
   }
-  async capabilities() {
-    const capabilities = nativeCapabilitiesSchema.parse(await this.request('/capabilities'))
+  capabilities(): Promise<BridgeCapabilities> {
+    if (this.capabilityRequest) return this.capabilityRequest
+    const task = this.readCapabilities()
+    this.capabilityRequest = task
+    void task
+      .finally(() => {
+        if (this.capabilityRequest === task) this.capabilityRequest = null
+      })
+      .catch(() => {})
+    return task
+  }
+  private async readCapabilities() {
+    const generation = this.generation
+    const raw = await this.request('/capabilities', this.sessionBody(), this.token, generation)
+    if (generation !== this.generation || !this.token)
+      throw new BridgeError('cancelled', 'Connection check cancelled.')
+    const parsed = nativeCapabilitiesSchema.safeParse(raw)
+    if (!parsed.success)
+      throw new BridgeError(
+        'invalid_response',
+        'Lens Bridge returned incompatible capabilities. Reload this page and restart the current companion.',
+      )
+    const capabilities = parsed.data
     if (capabilities.sessionId !== this.sessionId)
       throw new Error('Companion session changed. Reconnect.')
     this.manifest = capabilities

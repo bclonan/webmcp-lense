@@ -1,6 +1,6 @@
 # Desktop protocol 1
 
-Lens Bridge 0.2.0 speaks explicit wire protocol 1. The protocol version is independent of the app version. A mismatched version fails before input. The prior unversioned 0.1.0 bridge is incompatible and must be updated.
+Lens Bridge 0.2.1 speaks explicit wire protocol 1. The protocol version is independent of the app version. A mismatched version fails before input. The prior unversioned 0.1.0 bridge is incompatible and must be updated.
 
 ## Canonical schemas
 
@@ -15,6 +15,10 @@ All endpoints accept POST JSON on loopback port 47653 with an exact allowed Orig
 ```
 
 `POST /pair` returns `protocolVersion`, `bridgeVersion`, `sessionId`, Unix-millisecond `timestamp`, `token` and `expiresIn`. The code contains 128 random bits, expires in five minutes and is consumed once. The 256-bit bearer token authorizes a maximum 30-minute session. There are at most five pairing attempts per 30-second window.
+
+A pairing request without `protocolVersion` fails before consuming its code or counting a pairing attempt. For this old browser request only, the error reply uses a readable string in `error`, the stable code in `errorCode`, and the structured object in `errorDetails`. Older tabs can display the reload instructions instead of `[object Object]`. This compatibility reply does not permit unversioned pairing or input.
+
+The browser retries a temporary capability-read failure once after 250 ms and combines concurrent checks. It never retries pairing or execution automatically. Timeout recovery requires the user to obtain another code or inspect the target app before proposing another action.
 
 Subsequent requests require `Authorization: Bearer <token>`. `POST /capabilities`, `/disconnect` and `/stop` accept only:
 
