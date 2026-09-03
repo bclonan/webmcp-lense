@@ -8,7 +8,7 @@ Open [Lens](https://lens-webmcp.netlify.app). Workspace opens by default, with W
 
 Open [Desktop setup](https://lens-webmcp.netlify.app/setup), or click Desktop setup in Workspace. The existing dialog contains the download selector and pairing steps. It detects your likely OS and lets you choose another. On macOS, choose Apple silicon or Intel.
 
-Downloads appear only after release packages have been built and staged with matching SHA-256 checksums. If the dialog says a verified download has not been published, there is no end-user package available for that platform yet. See [release verification](VERIFICATION.md).
+Download Windows bridge appears beside Desktop setup and the connection dialog heading. Version 0.2.1 is an unsigned Windows x64 development preview with a verified SHA-256 checksum. A console may open alongside Lens Bridge; keep both windows open. macOS and Linux packages are not published yet. The selector shows that status instead of a broken link. See [release verification](VERIFICATION.md).
 
 1. Download Lens Bridge for your computer. Windows uses a portable EXE. On macOS, open the DMG and drag Lens Bridge to Applications. Linux uses a Debian package for Ubuntu 24.04 or newer with an X11 session.
 2. Open Lens Bridge. It opens a visible window; keep it running. The packaged app defaults to `https://lens-webmcp.netlify.app`. Use Change website if you need another exact HTTPS origin or local development origin.
@@ -22,6 +22,8 @@ The connection panel reports the device, bridge/protocol versions, advertised co
 Pairing lasts up to 30 minutes and survives navigation within Lens. Reloading the browser requires another screen share and pairing. Screen permission and session tokens are not saved.
 
 ## Run and stop actions
+
+New session in Workspace cancels pending work, ends screen sharing and pairing, and opens a fresh demo desktop with control disabled. Saved workflows remain available, and the previous timeline appears in Settings under session history. Save an active workflow recording before starting a new session. If saving session history fails, Lens stops control and keeps the current session visible.
 
 Use the action composer or a listed WebMCP tool. Each live action requires its visible approval card. A sequence runs one step at a time, observes the result, and stops on failure. Keyboard actions wait three seconds after approval so you can focus the target app. An explicit rerun starts again at step 1 with fresh IDs and approvals.
 

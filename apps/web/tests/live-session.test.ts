@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { LensService } from '../src/app/LensService'
 import type { DesktopCommand } from '@lens/protocol'
+import { starterCartridge } from '../src/workflows/CartridgeService'
 
 beforeEach(() => setActivePinia(createPinia()))
 afterEach(() => {
@@ -93,6 +94,80 @@ async function approval(lens: LensService, previous?: string) {
   return lens.approvals.pending!.id
 }
 describe('Paired sequential sessions', () => {
+  it('starts a fresh session after cancelling approval and retains saved history and workflows', async () => {
+    const { lens, commands, paths } = await paired()
+    const oldId = lens.session.id
+    lens.session.cartridges = [starterCartridge]
+    const run = lens.runSequence(sequence)
+    const oldRuntime = lens.runtime
+    const pending = await approval(lens)
+    const stopCapture = vi.spyOn(lens.capture, 'stop')
+    await lens.newSession()
+    await run.task
+    expect(lens.session.id).not.toBe(oldId)
+    expect(lens.session.authorized).toBe(false)
+    expect(lens.session.mode).toBe('demo')
+    expect(lens.screen.sharing).toBe(false)
+    expect(stopCapture).toHaveBeenCalledOnce()
+    expect(paths).toContain('/stop')
+    expect(lens.runtimeState).toMatchObject({
+      busy: false,
+      state: 'idle',
+      goal: null,
+      lastRun: null,
+    })
+    expect(lens.approvals.pending).toBeNull()
+    expect(() => oldRuntime.approve(pending, true)).toThrow('no longer pending')
+    expect(commands).toHaveLength(0)
+    expect(lens.session.cartridges[0].id).toBe(starterCartridge.id)
+    expect(lens.session.history.some((s) => s.id === oldId)).toBe(true)
+    expect((await lens.repository.events(oldId)).some((e) => e.type === 'goal.cancelled')).toBe(
+      true,
+    )
+    expect(lens.session.events.every((e) => e.sessionId === lens.session.id)).toBe(true)
+    expect(() => lens.rerunLast()).toThrow('No run')
+  })
+  it('waits for an executing receipt before resetting and blocks new actions during reset', async () => {
+    const { lens } = await paired()
+    const oldId = lens.session.id
+    let release!: () => void
+    vi.spyOn(lens.bridge, 'execute').mockImplementation(async (command) => {
+      await new Promise<void>((resolve) => {
+        release = resolve
+      })
+      return { id: command.id, ok: true, executedAt: Date.now() }
+    })
+    const run = lens.runSequence(sequence)
+    lens.runtime.approve(await approval(lens), true)
+    await vi.waitFor(() => expect(lens.runtimeState.state).toBe('executing'))
+    const reset = lens.newSession()
+    expect(lens.session.resetting).toBe(true)
+    expect(lens.session.id).toBe(oldId)
+    expect(() => lens.runSequence(sequence)).toThrow('new session')
+    release()
+    await reset
+    await run.task
+    expect(lens.runtimeState.state).toBe('idle')
+    expect(lens.session.events.some((e) => e.type === 'action.executed')).toBe(false)
+    expect((await lens.repository.events(oldId)).some((e) => e.type === 'action.executed')).toBe(
+      true,
+    )
+  })
+  it('keeps recordings and unsaved session history when a reset cannot proceed', async () => {
+    const { lens } = await paired()
+    const oldId = lens.session.id
+    lens.startRecording()
+    await expect(lens.newSession()).rejects.toThrow('Finish saving')
+    expect(lens.session.recording).toBe(true)
+    expect(lens.session.authorized).toBe(true)
+    lens.session.recording = false
+    vi.spyOn(lens.repository, 'saveSession').mockRejectedValue(new Error('Storage unavailable'))
+    await expect(lens.newSession()).rejects.toThrow('has not been cleared')
+    expect(lens.session.id).toBe(oldId)
+    expect(lens.session.events.length).toBeGreaterThan(0)
+    expect(lens.session.resetting).toBe(false)
+    expect(lens.session.authorized).toBe(false)
+  })
   it('continues after a copy command with a receipt instead of demanding visual change', async () => {
     const { lens, commands } = await paired()
     const changed = vi.spyOn(lens, 'waitForChange')

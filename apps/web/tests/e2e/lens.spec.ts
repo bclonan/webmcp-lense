@@ -75,13 +75,16 @@ test('record, replay, edit and export a cartridge', async ({ page }) => {
 })
 test('local tools use validation and registered shared services', async ({ page }) => {
   await page.goto('/tools')
-  await expect(page.locator('.tool-list button')).toHaveCount(19)
-  await page.getByRole('button', { name: 'Invoke tool' }).click()
-  await expect(page.getByLabel('Last tool output')).toContainText('fixture')
-  await page.getByRole('button', { name: 'desktop_type', exact: false }).click()
-  await page.getByLabel('Example input').fill('{"text":"hello","shell":true}')
-  await page.getByRole('button', { name: 'Invoke tool' }).click()
-  await expect(page.getByLabel('Last tool output')).toContainText('VALIDATION_ERROR')
+  await expect(page.locator('[data-tool-name]')).toHaveCount(19)
+  await page.getByRole('button', { name: 'Try screen_get_context', exact: true }).click()
+  await page.getByRole('button', { name: 'Run read-only tool', exact: true }).click()
+  await expect(page.getByLabel('Documentation tool result')).toContainText('fixture')
+  await page.getByRole('button', { name: 'Preview desktop_type', exact: true }).click()
+  await page.getByLabel('Preview arguments').fill('{"text":"hello","shell":true}')
+  await page.getByRole('dialog').getByRole('button', { name: 'Validate arguments' }).click()
+  await expect(page.getByRole('dialog').locator('pre[role="status"]')).toContainText(
+    'VALIDATION_ERROR',
+  )
 })
 test('all browser evaluations pass', async ({ page }) => {
   await page.goto('/evals')

@@ -1,0 +1,56 @@
+[
+  {
+    "time": "0:00–0:15",
+    "title": "Problem and thesis",
+    "action": "Show /hackathon, then the Workspace and its fixture label.",
+    "narration": "A screen can be easy for a person and ambiguous for an agent. I built Lens to make actions explicit, reviewable, and visible. The person and the agent work in the same browser session.",
+    "tools": [],
+    "result": "Lens hero, Workspace, 19 tools and the event timeline."
+  },
+  {
+    "time": "0:15–0:35",
+    "title": "Application and goal",
+    "action": "Click New session, then Enable demo control. Show the Paint goal and current observation. Keep the agent pane beside Workspace.",
+    "narration": "This is the local demo desktop. No API key or native installation is needed. I enable control, then ask for a house and sun in Paint. The fixture label matters: this is a deterministic demonstration of the runtime, not a claim that Lens understands arbitrary desktop pixels.",
+    "tools": ["screen_get_context"],
+    "result": "Fixture observation; authorized demo with an empty desktop."
+  },
+  {
+    "time": "0:35–1:45",
+    "title": "Uninterrupted primary workflow",
+    "action": "Ask the agent to start recording, run the Paint goal, inspect goal_status, then read screen_get_context and session_get_events. Do not cut away or speed up the workflow. Expand a pointer event and its receipt while narrating.",
+    "narration": "The agent starts a recording of Lens actions and submits the Paint goal as a structured call. Lens returns an accepted goal ID. Accepted does not mean completed. We follow the current goal with the status tool while the same Workspace shows each transition. The runtime opens Paint, resolves its canvas, and draws four pointer paths. Those strokes are visible here. Each action passes through the policy check, bridge response, observation, and verification. If an action needs approval, the person sees a card in this panel. No tool can approve it for them. The event timeline explains what happened without asking us to infer success from a button click. Now the goal is complete. A fresh fixture observation reports the house and sun. The events retain the commands and their results. A failure would stop the remaining steps. Lens would not silently retry a mouse click or type the same text twice.",
+    "tools": [
+      "workflow_start_recording",
+      "goal_start",
+      "goal_status",
+      "screen_get_context",
+      "session_get_events"
+    ],
+    "result": "Paint house and sun, four paths, completed status, recorded events."
+  },
+  {
+    "time": "1:45–2:15",
+    "title": "Chain and shared state",
+    "action": "Save the settled recording with workflow_stop_recording named House with a sun. Pass its returned data.id to capability_export. Click Show workflows and open the new cartridge; show its JSON.",
+    "narration": "Next, we turn that run into a reusable workflow. The agent ends the recording and names it House with a sun. The saved cartridge appears immediately in Workspace because the tool and the interface use the same service and state. Its returned ID becomes the argument to the export tool. That returns portable JSON. I still choose whether to download a file, edit the steps, or run them again.",
+    "tools": ["workflow_stop_recording", "capability_export"],
+    "result": "Saved cartridge in Workspace and matching structured JSON."
+  },
+  {
+    "time": "2:15–2:35",
+    "title": "Compare approaches",
+    "action": "Open /webmcp and advance the isolated comparison example. Point out the illustrative label and the unchanged real workspace.",
+    "narration": "A screenshot agent has to locate controls and infer their meaning. Lens exposes names, schemas, and results instead. This comparison is illustrative, not a speed benchmark. The tool contract survives presentation changes. Desktop coordinates and live visual interpretation still need care; WebMCP does not remove those limits.",
+    "tools": [],
+    "result": "Original comparison cards and explicitly illustrative operation counts."
+  },
+  {
+    "time": "2:35–2:50",
+    "title": "Architecture and close",
+    "action": "Open /hackathon architecture and repository link. Keep the public demo and source URLs visible.",
+    "narration": "Lens uses Vue, Pinia, strict schemas, and IndexedDB. Netlify hosts the app; an optional Rust companion handles reviewed native input. The source and setup instructions are linked here. My aim is simple: inspect, act, and verify together.",
+    "tools": [],
+    "result": "Architecture, source link and live demo link."
+  }
+]
