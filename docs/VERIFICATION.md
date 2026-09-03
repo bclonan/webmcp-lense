@@ -1,3 +1,20 @@
+# WebMCP documentation and hackathon overview, 2026-09-03
+
+Production deploy `6a9914dd0afafdbcb23b30d9`, build `2026-09-03T06:32:51.916Z`, is live at https://lens-webmcp.netlify.app. JavaScript is `index-BLDMws1a.js`; CSS is `index-djk7vNbV.css`.
+
+- 68 web unit tests passed. The new documentation contract checks all 19 runtime tools, JSON Schema argument examples with Ajv, output examples with the canonical validators, actual workflow result dependencies and script synchronization. Mutating documentation tests cannot execute even when called directly.
+- The full browser suite passed all 27 scenarios after the new routes and navigation fix. A final CSS adjustment covered tablet anchor spacing; all four documentation scenarios passed again at 320, 390, 768, 1000 and 1440 pixels. Copy feedback, validation previews, native registration retention, video placeholder and configured embed, internal links, metadata and assets passed.
+- `pnpm build` passed Vue type checking and bundling on the final application code. Rust formatting, Clippy with warnings denied and all 10 Rust tests passed. Native tests used fake input or read-only display enumeration. No OS input was sent.
+- Live browser checks confirmed `/webmcp`, `/hackathon` and the `/tools` redirect. Real native WebMCP discovery exposed 19 tools, and the same `goal_status` handle worked across route changes. The hosted Paint fixture completed all nine steps and displayed four paths. The browser error log was empty. Control was stopped after the check.
+- Desktop and mobile visual checks passed. Anchor targets stay below the sticky header; entry into either new page starts at its heading. Screenshots were reviewed in the browser, not saved as test artifacts.
+- `verify-documentation-deploy.mjs` matched the live build marker, four application routes and SHA-256 hashes for all 17 referenced branding, script, stylesheet and font assets. ICO format and the 1200 by 630 PNG dimensions passed browser tests.
+- The Windows development EXE remains available and matches SHA-256 `d8418748fa8be8662182bb30aa64b9b48f41a91252e664b5bea207bf7e15d132`. No new native build is claimed.
+- `git diff --check` passed. The project has no configured JavaScript lint command.
+
+GitHub API metadata confirmed `bclonan/webmcp-lense` is public on September 3, 2026. The new source, assets and MIT license remain local changes; no commit or push was made. `[YOUTUBE_URL]` remains unconfigured. The submission checklist shows these gaps. See [WEBMCP_RELEASE.md](WEBMCP_RELEASE.md) for changed files and follow-up.
+
+---
+
 # Windows download and new session, 2026-09-03
 
 Production deploy `6a9909ba043c5fcb89595175` contains the built Windows x64 development preview and New session in Workspace. The button stops control and capture, cancels approvals, waits for an executing receipt, and starts an unauthorized fresh session. It keeps saved workflows and previous session history. Active recordings must be saved first. A history save failure leaves the old session visible with control stopped.
@@ -47,30 +64,30 @@ The existing Rust bridge was reused. It now has a visible eframe application win
 - Local `cargo build --locked --release --manifest-path apps/bridge/Cargo.toml` compiles/links but Cargo cannot link or copy `target/release/deps/lens_bridge.exe` to `target/release/lens-bridge.exe`: Access is denied, OS error 5. The same command fails outside the sandbox. No permissions or endpoint protection were changed.
 - The release manifest intentionally has an empty artifacts array. The hosted manifest returned HTTP 200 with version 0.2.0, protocolVersion 1 and no downloads. Setup has no broken or fabricated download links.
 
-| Platform | Artifact target | Native release build | Downloaded launch | Native pairing/input | Download verified |
-| --- | --- | --- | --- | --- | --- |
-| Windows x64 | EXE | Local final copy blocked; CI did not start | No | No for 0.2.0 | No |
-| macOS arm64 | DMG containing app | CI did not start | No | No | No |
-| macOS x64 | DMG containing app | CI did not start | No | No | No |
-| Linux x64 | Ubuntu 24.04+ DEB | CI did not start | No | No | No |
+| Platform    | Artifact target    | Native release build                       | Downloaded launch | Native pairing/input | Download verified |
+| ----------- | ------------------ | ------------------------------------------ | ----------------- | -------------------- | ----------------- |
+| Windows x64 | EXE                | Local final copy blocked; CI did not start | No                | No for 0.2.0         | No                |
+| macOS arm64 | DMG containing app | CI did not start                           | No                | No                   | No                |
+| macOS x64   | DMG containing app | CI did not start                           | No                | No                   | No                |
+| Linux x64   | Ubuntu 24.04+ DEB  | CI did not start                           | No                | No                   | No                |
 
 ## Checks completed
 
-| Check | Exact command | Result |
-| --- | --- | --- |
-| Bridge format | `cargo fmt --manifest-path apps/bridge/Cargo.toml -- --check` | Passed |
-| Bridge lint | `cargo clippy --locked --manifest-path apps/bridge/Cargo.toml --all-targets -- -D warnings` | Passed |
-| Windows type check | `cargo check --manifest-path apps/bridge/Cargo.toml --locked` | Passed |
-| macOS type/lint check | `cargo clippy --locked --manifest-path apps/bridge/Cargo.toml --target aarch64-apple-darwin --all-targets -- -D warnings` | Passed; cross-check only |
-| Linux type/lint check | `cargo clippy --locked --manifest-path apps/bridge/Cargo.toml --target x86_64-unknown-linux-gnu --all-targets -- -D warnings` | Passed; cross-check only |
-| Bridge tests | `cargo test --locked --manifest-path apps/bridge/Cargo.toml` | 10 passed |
-| Windows development build | `cargo build --locked --manifest-path apps/bridge/Cargo.toml` | Passed |
-| Windows release build | `cargo build --locked --release --manifest-path apps/bridge/Cargo.toml` | Failed at final output copy, OS error 5 |
-| macOS/Linux release builds | Same release command on their native CI runners | Not run; account billing blocked startup |
-| Web tests | `pnpm test` | 53 passed |
-| Browser integration | `pnpm test:e2e` | All 18 passed on final full run |
-| Web production build | `pnpm build` | Passed, including Vue type check |
-| JSON schema export | `node --experimental-strip-types apps/web/scripts/export-schemas.mjs` | Passed |
+| Check                      | Exact command                                                                                                                 | Result                                   |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| Bridge format              | `cargo fmt --manifest-path apps/bridge/Cargo.toml -- --check`                                                                 | Passed                                   |
+| Bridge lint                | `cargo clippy --locked --manifest-path apps/bridge/Cargo.toml --all-targets -- -D warnings`                                   | Passed                                   |
+| Windows type check         | `cargo check --manifest-path apps/bridge/Cargo.toml --locked`                                                                 | Passed                                   |
+| macOS type/lint check      | `cargo clippy --locked --manifest-path apps/bridge/Cargo.toml --target aarch64-apple-darwin --all-targets -- -D warnings`     | Passed; cross-check only                 |
+| Linux type/lint check      | `cargo clippy --locked --manifest-path apps/bridge/Cargo.toml --target x86_64-unknown-linux-gnu --all-targets -- -D warnings` | Passed; cross-check only                 |
+| Bridge tests               | `cargo test --locked --manifest-path apps/bridge/Cargo.toml`                                                                  | 10 passed                                |
+| Windows development build  | `cargo build --locked --manifest-path apps/bridge/Cargo.toml`                                                                 | Passed                                   |
+| Windows release build      | `cargo build --locked --release --manifest-path apps/bridge/Cargo.toml`                                                       | Failed at final output copy, OS error 5  |
+| macOS/Linux release builds | Same release command on their native CI runners                                                                               | Not run; account billing blocked startup |
+| Web tests                  | `pnpm test`                                                                                                                   | 53 passed                                |
+| Browser integration        | `pnpm test:e2e`                                                                                                               | All 18 passed on final full run          |
+| Web production build       | `pnpm build`                                                                                                                  | Passed, including Vue type check         |
+| JSON schema export         | `node --experimental-strip-types apps/web/scripts/export-schemas.mjs`                                                         | Passed                                   |
 
 The first browser run failed the Linux key-choice fixture and one recording workflow after source edits triggered development reload. The fixture now advertises platform-appropriate keys. The final uninterrupted full run passed all 18 checks.
 
@@ -89,28 +106,29 @@ Rust HTTP tests exercise the real server with a fake input backend: exact origin
 To finish the release, resolve GitHub's account billing/spending restriction, build all four native packages, download the artifacts with their manifests, run `pnpm stage:bridge`, build/deploy the web app, and run `node --use-system-ca scripts/verify-bridge-downloads.mjs https://lens-webmcp.netlify.app`. Then smoke-test the actual downloaded applications on available native systems. No debug binary should substitute for a release package.
 
 ---
+
 # Verification record
 
 Verified locally on Windows on September 2, 2026.
 
-| Gate | Final result |
-| --- | --- |
-| `pnpm install --frozen-lockfile` | Passed |
-| `pnpm build` | Passed, including Vue/TypeScript checking and production bundling |
-| `pnpm test` | 49 passed, including sequential live sessions, cancellation, platform shortcut rejection, clipboard boundaries and visual change detection |
-| Browser tests | 11 workflow/layout checks passed; all 7 guided-session checks passed on their final rerun after updating the platform-neutral heading expectation |
-| `pnpm test:bridge` | 8 passed in the default target directory, including physical Windows monitor enumeration |
-| Rust debug build and `cargo check --tests` | Passed after all companion changes |
-| Rust cross-target checks | `cargo check --tests` passed for Apple Silicon macOS and x86_64 Linux; does not link or exercise native input |
-| Rust release build | Current Windows build failed at the link/copy step for `target/release/lens-bridge.exe`, reporting Access is denied. Retrying outside the sandbox did not resolve it. No release pass claimed. |
-| Git whitespace check | Passed across all added files |
-| Native companion startup | Bound loopback, registered Ctrl+Alt+F10, printed pairing prompt |
-| Console stop/rearm/quit | Passed using controlled stdin; no desktop input sent |
-| Native WebMCP | All 19 tools discovered in the Codex in-app browser |
-| Native WebMCP sequence and rerun | Two-step focus/type sequence completed on the demo desktop. Explicit rerun completed with a fresh goal ID and appended the text again. |
-| Native WebMCP Paint goal | Completed; four visible strokes produced the house and sun |
-| Native WebMCP Notepad goal | Completed; observation and preview contained `The house is finished.` |
-| Mobile UI | All six routes fit a 390-pixel viewport without script errors |
+| Gate                                       | Final result                                                                                                                                                                                   |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm install --frozen-lockfile`           | Passed                                                                                                                                                                                         |
+| `pnpm build`                               | Passed, including Vue/TypeScript checking and production bundling                                                                                                                              |
+| `pnpm test`                                | 49 passed, including sequential live sessions, cancellation, platform shortcut rejection, clipboard boundaries and visual change detection                                                     |
+| Browser tests                              | 11 workflow/layout checks passed; all 7 guided-session checks passed on their final rerun after updating the platform-neutral heading expectation                                              |
+| `pnpm test:bridge`                         | 8 passed in the default target directory, including physical Windows monitor enumeration                                                                                                       |
+| Rust debug build and `cargo check --tests` | Passed after all companion changes                                                                                                                                                             |
+| Rust cross-target checks                   | `cargo check --tests` passed for Apple Silicon macOS and x86_64 Linux; does not link or exercise native input                                                                                  |
+| Rust release build                         | Current Windows build failed at the link/copy step for `target/release/lens-bridge.exe`, reporting Access is denied. Retrying outside the sandbox did not resolve it. No release pass claimed. |
+| Git whitespace check                       | Passed across all added files                                                                                                                                                                  |
+| Native companion startup                   | Bound loopback, registered Ctrl+Alt+F10, printed pairing prompt                                                                                                                                |
+| Console stop/rearm/quit                    | Passed using controlled stdin; no desktop input sent                                                                                                                                           |
+| Native WebMCP                              | All 19 tools discovered in the Codex in-app browser                                                                                                                                            |
+| Native WebMCP sequence and rerun           | Two-step focus/type sequence completed on the demo desktop. Explicit rerun completed with a fresh goal ID and appended the text again.                                                         |
+| Native WebMCP Paint goal                   | Completed; four visible strokes produced the house and sun                                                                                                                                     |
+| Native WebMCP Notepad goal                 | Completed; observation and preview contained `The house is finished.`                                                                                                                          |
+| Mobile UI                                  | All six routes fit a 390-pixel viewport without script errors                                                                                                                                  |
 
 The browser suite verifies approval before fictional claim submission, STOP with a pending approval, recording/replay/edit/export, capture initiation and track cleanup, and reload without control authorization. New checks cover setup with three monitor choices, two independently approved steps, keeping one pairing across navigation and rerun, recovery after an unverified action, clipboard review and user-clicked copy, and mobile modal focus restoration. Live capture and clipboard tests use substitutes; no real OS input or clipboard access occurs in those tests. Native tool discovery and the demo sequence above ran in the actual Codex in-app browser.
 

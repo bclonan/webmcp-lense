@@ -4,7 +4,7 @@ Production: https://lens-webmcp.netlify.app
 
 Netlify project: `11208571-39b6-465e-981e-8cd12e0e4f43`
 
-The current deployment is `6a9909ba043c5fcb89595175`, with build ID `2026-09-03T05:44:04.673Z`. It adds the Windows bridge development preview download and New session in Workspace. The production browser check and hosted EXE checksum verification passed.
+The current deployment is `6a9914dd0afafdbcb23b30d9`, with build ID `2026-09-03T06:32:51.916Z`. It adds the registry-backed `/webmcp` page, `/hackathon` overview and branded metadata/assets. It retains the Windows bridge development preview and New session in Workspace. Production route, asset, browser and EXE checksum checks passed. See [the release report](WEBMCP_RELEASE.md).
 
 Pages revalidate on load. `/app-version.json` is not cached. Tabs running this patch check the marker when visible and every minute, then offer Reload to update if the build changed. Updates never force a reload during screen sharing. Tabs from before this patch need one manual reload to receive the update checker.
 
@@ -15,6 +15,8 @@ To publish a later local build using an authenticated Netlify CLI:
 ```sh
 pnpm build
 netlify deploy --filter @lens/web --site 11208571-39b6-465e-981e-8cd12e0e4f43 --prod --no-build
+node --use-system-ca scripts/verify-documentation-deploy.mjs https://lens-webmcp.netlify.app
+node --use-system-ca scripts/verify-bridge-downloads.mjs https://lens-webmcp.netlify.app
 ```
 
 ## Windows companion for the hosted page
